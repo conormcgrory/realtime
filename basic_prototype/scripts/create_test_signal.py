@@ -39,7 +39,7 @@ def main():
     n_smps_total = n_sessions * n_smps_session
     print(f'Recording: {REC_INDEX}')
     print(f'Bin size: {bin_size} sec')
-    print(f'Num. sessions: {n_smps_session}')
+    print(f'Num. sessions: {n_sessions}')
     print(f'Num. samples/session: {n_smps_session}')
     print(f'Num. samples total: {n_smps_total}')
 
@@ -54,7 +54,7 @@ def main():
     out_fpath = os.path.join(OUTPUT_DIR, out_fname)
     print(f'Writing to {out_fpath}...')
     with h5py.File(out_fpath, 'w') as f:
-        dset = f.create_dataset('fr_avg_hz', data=fr_avg)
+        f.create_dataset('fr_avg_hz', data=fr_avg)
     print('Done.')
     
     
