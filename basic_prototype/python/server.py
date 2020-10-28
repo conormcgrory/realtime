@@ -30,7 +30,7 @@ def main():
     # Output values from filter
     filter_preds = np.full(n_pts, np.nan)
 
-    # Round-trip latencies (ms)
+    # Round-trip latencies (us)
     rt_times = np.full(n_pts, np.nan)
 
     for i in range(n_pts):
@@ -51,13 +51,13 @@ def main():
     # Summary statistics
     mean_time = np.mean(rt_times)
     median_time = np.median(rt_times)
-    print(f'Mean round-trip latency: {mean_time:.2f}')
-    print(f'Median round-trip latency: {median_time:.2f}')
+    print(f'Mean round-trip latency: {mean_time:.2f} us')
+    print(f'Median round-trip latency: {median_time:.2f} us')
 
     # Save filter predictions and latencies
     with h5py.File(OUTPUT_FPATH, 'w') as f:
         f.create_dataset('filter_preds', data=filter_preds)
-        f.create_dataset('rt_times_ms', data=rt_times)
+        f.create_dataset('rt_times_us', data=rt_times)
 
 
 if __name__ == '__main__':

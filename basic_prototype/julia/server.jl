@@ -21,7 +21,7 @@ const SERVER_PORT = 2000
     send_signal(signal, conn)
 
 Send `signal` to client process over `conn`, and store and return client 
-process response and round-trip latency.
+process response and round-trip latency (microseconds).
 """
 function send_signal(signal::Array{Float64, 1}, conn::TCPSocket)
 
@@ -30,7 +30,7 @@ function send_signal(signal::Array{Float64, 1}, conn::TCPSocket)
     # Output values from filter
     filter_preds = fill(NaN, n_pts)
 
-    # Round-trip latencies (ms)
+    # Round-trip latencies (microseconds)
     rt_times = fill(NaN, n_pts)
 
     for i in 1:n_pts
@@ -43,6 +43,7 @@ function send_signal(signal::Array{Float64, 1}, conn::TCPSocket)
         # Read filter value from client
         filter_preds[i] = read(conn, Float64)
 
+        # Compute round-trip latency (microseconds)
         rt_times[i] = (time_ns() - t_start_ns) / 1000
 
     end
@@ -64,7 +65,7 @@ function main()
     conn = accept(server)
     println("Client connected. Starting stream...")
 
-    # Send signal 
+    # Send signal
     filter_preds, rt_times = send_signal(fr_avg, conn)
 
     # Close connection
@@ -74,12 +75,12 @@ function main()
     # Print average round-trip time
     mean_time = mean(rt_times)
     median_time = median(rt_times)
-    @printf("Mean round-trip latency: %.2f ms\n", mean_time)
-    @printf("Median round-trip latency: %.2f ms\n", median_time)
+    @printf("Mean round-trip latency: %.2f μs\n", mean_time)
+    @printf("Median round-trip latency: %.2f μs\n", median_time)
 
     # Write filter predictions and round-trip times to output file
     h5write(OUTPUT_FPATH, "filter_preds", filter_preds)
-    h5write(OUTPUT_FPATH, "rt_times_ms", rt_times)
+    h5write(OUTPUT_FPATH, "rt_times_us", rt_times)
 
 end
 
