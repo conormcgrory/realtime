@@ -11,13 +11,13 @@ const SERVER_PORT = 2000
 """
     echo_stream(conn:TCPSocket)
 
-Read 64-bit floats from `conn` and immediately write them back.
+Read 8-bit ints from `conn` and immediately write them back.
 """
 function echo_stream(conn::TCPSocket)
 
     while !eof(conn)
 
-        x = read(conn, Float64)
+        x = read(conn, Int8)
         write(conn, x)
 
     end
