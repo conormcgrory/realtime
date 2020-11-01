@@ -5,7 +5,6 @@ use std::str::from_utf8;
 
 use clap::{App, Arg, SubCommand};
 
-/*
 // Server helper
 fn handle_client(mut stream: TcpStream) {
     let mut data = [0 as u8; 50]; // using 50 byte buffer
@@ -24,7 +23,7 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 // Server
-fn filter() {
+fn filter_mode(host: &str, port: &str) {
     let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
@@ -49,7 +48,7 @@ fn filter() {
 
 
 // Client 
-fn client() {
+fn probe_mode(host: &str, port: &str, in_fpath: &str, out_fpath: &str) {
     match TcpStream::connect("localhost:3333") {
         Ok(mut stream) => {
             println!("Successfully connected to server in port 3333");
@@ -80,7 +79,7 @@ fn client() {
     }
     println!("Terminated.");
 }
-*/
+
 
 fn main() {
 
@@ -146,16 +145,14 @@ fn main() {
         ("filter", Some(filter_matches)) => {
             let host = filter_matches.value_of("host").unwrap();
             let port = filter_matches.value_of("port").unwrap();
-            println!("filter");
-            //filter(host, port);
+            filter_mode(host, port);
         }
         ("probe", Some(probe_matches)) => {
             let host = probe_matches.value_of("host").unwrap();
             let port = probe_matches.value_of("port").unwrap();
             let in_file = probe_matches.value_of("input").unwrap();
             let out_file = probe_matches.value_of("output").unwrap();
-            println!("probe");
-            //probe(host, port, in_file, out_file);
+            probe_mode(host, port, in_file, out_file);
         }
         ("", None) => println!("Use '--help' mode for program information."),
         _ => unreachable!(),
