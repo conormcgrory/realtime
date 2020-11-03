@@ -1,13 +1,18 @@
 use std::thread;
-use std::net::{TcpListener, TcpStream, Shutdown};
+use std::net::{IpAddr, TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
 use std::str::from_utf8;
 
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg, SubCommand, value_t};
+
+static NUM_NEURONS: u16 = 11;
+
 
 // Server helper
 fn handle_client(mut stream: TcpStream) {
-    let mut data = [0 as u8; 50]; // using 50 byte buffer
+
+    let mut data = vec![0 as u8; NUM_NEURONS as usize];
+
     while match stream.read(&mut data) {
         Ok(size) => {
             // echo everything!
@@ -23,55 +28,60 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 // Server
-fn filter_mode(host: &str, port: &str) {
-    let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
+fn filter_mode(host: IpAddr, port: u16) {
+
+    let listener = TcpListener::bind((host, port)).unwrap();
+    println!("Server listening on port {}", port);
+
     // accept connections and process them, spawning a new thread for each one
-    println!("Server listening on port 3333");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
                 thread::spawn(move|| {
-                    // connection succeeded
                     handle_client(stream)
                 });
             }
             Err(e) => {
                 println!("Error: {}", e);
-                /* connection failed */
             }
         }
     }
+
     // close the socket server
     drop(listener);
 }
 
 
 // Client 
-fn probe_mode(host: &str, port: &str, in_fpath: &str, out_fpath: &str) {
-    match TcpStream::connect("localhost:3333") {
+fn probe_mode(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
+
+    match TcpStream::connect((host, port)) {
         Ok(mut stream) => {
-            println!("Successfully connected to server in port 3333");
 
-            let msg = b"Hello!";
+            println!("Successfully connected to server in port {}", port);
+            println!("Sending signal...");
 
-            stream.write(msg).unwrap();
-            println!("Sent Hello, awaiting reply...");
+            for i in 1..11 {
 
-            let mut data = [0 as u8; 6]; // using 6 byte buffer
-            match stream.read_exact(&mut data) {
-                Ok(_) => {
-                    if &data == msg {
-                        println!("Reply is ok!");
-                    } else {
-                        let text = from_utf8(&data).unwrap();
-                        println!("Unexpected reply: {}", text);
+                let signal = vec![i as u8; NUM_NEURONS as usize];
+                stream.write(&signal).unwrap();
+                println!("Sent signal, awaiting reply...");
+
+                let mut data = vec![0 as u8; NUM_NEURONS as usize];
+                match stream.read_exact(&mut data) {
+                    Ok(_) => {
+                        if &data != &signal {
+                            println!("Unexpected reply!");
+                        } 
+                    },
+                    Err(e) => {
+                        println!("Failed to receive data: {}", e);
                     }
-                },
-                Err(e) => {
-                    println!("Failed to receive data: {}", e);
                 }
             }
+
+            println!("Done.");
         },
         Err(e) => {
             println!("Failed to connect: {}", e);
@@ -143,13 +153,17 @@ fn main() {
 
     match matches.subcommand() {
         ("filter", Some(filter_matches)) => {
-            let host = filter_matches.value_of("host").unwrap();
-            let port = filter_matches.value_of("port").unwrap();
+            let host = value_t!(filter_matches.value_of("host"), IpAddr)
+                .unwrap_or_else(|e| e.exit());
+            let port = value_t!(filter_matches.value_of("port"), u16)
+                .unwrap_or_else(|e| e.exit());
             filter_mode(host, port);
         }
         ("probe", Some(probe_matches)) => {
-            let host = probe_matches.value_of("host").unwrap();
-            let port = probe_matches.value_of("port").unwrap();
+            let host = value_t!(probe_matches.value_of("host"), IpAddr)
+                .unwrap_or_else(|e| e.exit());
+            let port = value_t!(probe_matches.value_of("port"), u16)
+                .unwrap_or_else(|e| e.exit());
             let in_file = probe_matches.value_of("input").unwrap();
             let out_file = probe_matches.value_of("output").unwrap();
             probe_mode(host, port, in_file, out_file);
