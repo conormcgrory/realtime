@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33.3"
+ndarray = "0.13.1"
+hdf5 = "0.7.0"

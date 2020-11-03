@@ -1,11 +1,12 @@
 use std::thread;
 use std::net::{IpAddr, TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
-use std::str::from_utf8;
 
 use clap::{App, Arg, SubCommand, value_t};
+use hdf5;
 
-static NUM_NEURONS: u16 = 11;
+
+static NUM_NEURONS: u16 = 698;
 
 
 // Server helper
@@ -56,22 +57,26 @@ fn filter_mode(host: IpAddr, port: u16) {
 // Client 
 fn probe_mode(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
 
+    // Read input file
+    let file = hdf5::File::open(in_fpath).unwrap();
+    let dset = file.dataset("spks").unwrap();
+    let spks = dset.read_2d::<u8>().unwrap();
+
     match TcpStream::connect((host, port)) {
         Ok(mut stream) => {
 
             println!("Successfully connected to server in port {}", port);
             println!("Sending signal...");
 
-            for i in 1..11 {
+            for s in spks.gencolumns() {
 
-                let signal = vec![i as u8; NUM_NEURONS as usize];
-                stream.write(&signal).unwrap();
-                println!("Sent signal, awaiting reply...");
+                let buffer = s.to_vec();
+                stream.write(&buffer).unwrap();
 
                 let mut data = vec![0 as u8; NUM_NEURONS as usize];
                 match stream.read_exact(&mut data) {
                     Ok(_) => {
-                        if &data != &signal {
+                        if &data != &buffer {
                             println!("Unexpected reply!");
                         } 
                     },
