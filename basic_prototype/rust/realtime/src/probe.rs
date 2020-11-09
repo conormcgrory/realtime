@@ -1,42 +1,54 @@
 //! Module that implements "probe mode"
 
-
 use std::net::{IpAddr, TcpStream};
-use std::io;
-use std::io::{Read, Write};
 use std::time::Instant;
+
 use ndarray::prelude::*;
 use hdf5;
 
+use crate::protocol::ProbeConnection;
 
-/// Send header to filter containing number of neurons in recording
-fn send_header(num_neurons: u16, stream: &mut TcpStream) -> io::Result<()> {
 
-    // Encode header data to byte array
-    let hdr_bytes = num_neurons.to_be_bytes();
+/// Read spike data from input file
+fn read_spks_file(fpath: &str) -> hdf5::Result<Array2<u8>> {
 
-    // Write header to socket
-    stream.write(&hdr_bytes).unwrap();
-
-    // Read response from filter
-    let mut resp_bytes = [0; 1];
-    stream.read_exact(&mut resp_bytes).unwrap();
-
-    // Check for ACK character
-    if resp_bytes == [0x06] {
-        return Ok(());
-    } else {
-        return Err(io::Error::new(io::ErrorKind::Other, "ACK not recieved"));
-    }
+    hdf5::File::open(fpath)?
+        .dataset("spks")?
+        .read_2d::<u8>()
 }
 
+/// Write filter predictions and latency times to output file
+fn write_output(filter_preds: Array2<u8>, times_us: Array1<f64>, out_fpath: &str) -> hdf5::Result<()> {
 
-/// Send spike count vectors to filter and record and time response
-fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<u8>, Array1<f64>)> {
+    let output_file = hdf5::File::create(out_fpath)?;
 
+    // Write filter predictions
+    let fp_shape = (filter_preds.len_of(Axis(0)), filter_preds.len_of(Axis(1)));
+    output_file.new_dataset::<u8>()
+        .create("filter_preds", fp_shape)?
+        .write(&filter_preds)?; 
+
+    // Write latency times
+    let ts_shape = times_us.len_of(Axis(1));
+    output_file.new_dataset::<f64>()
+        .create("rt_times_us", ts_shape)?
+        .write(&times_us)
+}
+
+/// Run probe mode
+pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) -> () {
+
+    // Read spikes from input file
+    let spks = read_spks_file(in_fpath).expect("Unable to read input file");
     let num_neurons = spks.len_of(Axis(0));
     let num_pts = spks.len_of(Axis(1));
 
+    // Connect to server
+    let stream = TcpStream::connect((host, port)).unwrap();
+    let mut conn = ProbeConnection::new(stream, num_neurons as u16).unwrap();
+    println!("Successfully connected to server in port {}", port);
+
+    // Send signal and record latencies
     let mut filter_preds = Array::zeros((num_neurons, num_pts));
     let mut times_us = Array::zeros(num_pts);
 
@@ -46,13 +58,10 @@ fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<u
         let t_start = Instant::now();
 
         // Write spike counts to socket
-        let buf_out = spks.column(i).to_vec();
-        stream.write(&buf_out).unwrap();
+        conn.send(spks.column(i).to_vec()).unwrap();
 
         // Read response from filter
-        let mut buf_in = vec![0 as u8; num_neurons];
-        stream.read_exact(&mut buf_in).unwrap();
-        let fpred = Array::from(buf_in);
+        let fpred = Array::from(conn.recv().unwrap());
 
         // Stop clock
         let time_ns = t_start.elapsed().as_nanos();
@@ -62,51 +71,6 @@ fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<u
         filter_preds.column_mut(i).assign(&fpred);
     }
 
-    return Ok((filter_preds, times_us));
+    // Write output to file
+    write_output(filter_preds, times_us, out_fpath).expect("Unable to write output");
 }
-
-
-// Run probe mode
-pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
-
-    // Read input file (TODO: Move this into its own function)
-    let file = hdf5::File::open(in_fpath).unwrap();
-    let dset = file.dataset("spks").unwrap();
-    let spks = dset.read_2d::<u8>().unwrap();
-
-    match TcpStream::connect((host, port)) {
-        Ok(mut stream) => {
-
-            println!("Successfully connected to server in port {}", port);
-
-            println!("Sending header...");
-            let num_neurons = spks.len_of(Axis(0));
-            let num_pts = spks.len_of(Axis(1));
-            send_header(num_neurons as u16, &mut stream).expect("Failed to send header");
-            println!("Done.");
-
-            println!("Sending signal...");
-            let (filter_preds, times_us) = send_signal(spks, &mut stream).expect("Failed to send signal");
-            println!("Done.");
-
-            // Write results to output file (TODO: Move this into its own function)
-            let file = hdf5::File::create(out_fpath).unwrap();
-            let ds_filter_preds = file
-                .new_dataset::<u8>()
-                .create("filter_preds", (num_neurons, num_pts))
-                .unwrap();
-            ds_filter_preds.write(&filter_preds).unwrap(); 
-            let ds_times_us = file
-                .new_dataset::<f64>()
-                .create("rt_times_us", num_pts)
-                .unwrap();
-            ds_times_us.write(&times_us).unwrap(); 
-        },
-        Err(e) => {
-            println!("Failed to connect: {}", e);
-        }
-    }
-    println!("Terminated.");
-}
-
-

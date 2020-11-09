@@ -4,9 +4,9 @@
 //! or "probe" mode.
 
 use std::net::IpAddr;
-
 use clap::{App, Arg, SubCommand, value_t};
 
+mod protocol;
 mod filter;
 mod probe;
 
