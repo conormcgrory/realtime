@@ -8,52 +8,50 @@ import h5py
 import numpy as np
 
 
-def probe_mode(host, port, in_fpath, out_fpath):
+NUM_NEURONS = 698
 
-    print(f'probe(host={host}, port={port}, in_fpath={in_fpath}, out_fpath={out_fpath})') 
+
+def probe_mode(host, port, in_fpath, out_fpath):
 
     # Load signal from file
     with h5py.File(in_fpath, 'r') as f:
-        signal = f['fr_avg_hz'][:]
-        n_pts = signal.shape[0]
+        spks = f['spks'][:]
+        assert(spks.shape[0] == NUM_NEURONS)
+        n_pts = spks.shape[1]
 
     # Create socket and connect to server
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((host, port))
 
-    # Output values from filter
-    filter_preds = np.full(n_pts, np.nan)
-
-    # Round-trip latencies (us)
-    rt_times = np.full(n_pts, np.nan)
+    filter_preds = np.full((NUM_NEURONS, n_pts), np.nan)
+    rt_times_us = np.full(n_pts, np.nan)
 
     for i in range(n_pts):
        
         t_start_ns = time_ns()
 
         # Write next signal value to client
-        sock.send(signal[i].tobytes())
+        sock.send(spks[:, i].tobytes())
 
         # Read filter value from client
-        filter_preds[i] = np.frombuffer(sock.recv(8))[0]
+        buf_in = sock.recv(NUM_NEURONS)
+        filter_preds[:, i] = np.frombuffer(buf_in, dtype=np.uint8)
 
-        rt_times[i] = (time_ns() - t_start_ns) / 1000
+        rt_times_us[i] = (time_ns() - t_start_ns) / 1000
 
     # Summary statistics
-    mean_time = np.mean(rt_times)
-    median_time = np.median(rt_times)
+    mean_time = np.mean(rt_times_us)
+    median_time = np.median(rt_times_us)
     print(f'Mean round-trip latency: {mean_time:.2f} us')
     print(f'Median round-trip latency: {median_time:.2f} us')
 
     # Save filter predictions and latencies
     with h5py.File(out_fpath, 'w') as f:
         f.create_dataset('filter_preds', data=filter_preds)
-        f.create_dataset('rt_times_us', data=rt_times)
+        f.create_dataset('rt_times_us', data=rt_times_us)
 
 
 def processor_mode(host, port):
-
-    print(f'processor(host={host}, port={port})')
 
     # Create server and connect to client
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -63,9 +61,11 @@ def processor_mode(host, port):
 
     while True:
 
-        data = conn.recv(8)
-        if not data: break
-        x = np.frombuffer(data)[0]
+        buf_in = conn.recv(NUM_NEURONS)
+        if not buf_in: 
+            break
+
+        x = np.frombuffer(buf_in, dtype=np.uint8)
         conn.send(x.tobytes())
 
     # Close connection
