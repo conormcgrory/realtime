@@ -8,7 +8,8 @@ import h5py
 import numpy as np
 
 
-NUM_NEURONS = 698
+HDR_SIZE = 2
+ACK_BYTE = b'\x06'
 
 
 def probe_mode(host, port, in_fpath, out_fpath):
@@ -16,14 +17,23 @@ def probe_mode(host, port, in_fpath, out_fpath):
     # Load signal from file
     with h5py.File(in_fpath, 'r') as f:
         spks = f['spks'][:]
-        assert(spks.shape[0] == NUM_NEURONS)
+        n_neurons = spks.shape[0]
         n_pts = spks.shape[1]
 
     # Create socket and connect to server
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((host, port))
 
-    filter_preds = np.full((NUM_NEURONS, n_pts), np.nan)
+    # Send header
+    hdr_bytes = np.array([n_neurons], dtype=np.uint16).tobytes()
+    sock.send(hdr_bytes)
+
+    # Receive ACK
+    hdr_resp = sock.recv(1)
+    if hdr_resp != ACK_BYTE:
+        raise ValueError('Response to header not ACK')
+
+    filter_preds = np.full((n_neurons, n_pts), np.nan)
     rt_times_us = np.full(n_pts, np.nan)
 
     for i in range(n_pts):
@@ -34,7 +44,7 @@ def probe_mode(host, port, in_fpath, out_fpath):
         sock.send(spks[:, i].tobytes())
 
         # Read filter value from client
-        buf_in = sock.recv(NUM_NEURONS)
+        buf_in = sock.recv(n_neurons)
         filter_preds[:, i] = np.frombuffer(buf_in, dtype=np.uint8)
 
         rt_times_us[i] = (time_ns() - t_start_ns) / 1000
@@ -59,9 +69,16 @@ def processor_mode(host, port):
     sock.listen(1)
     conn, _ = sock.accept()
 
+    # Read header
+    hdr_bytes = conn.recv(HDR_SIZE)
+    n_neurons = np.frombuffer(hdr_bytes, dtype=np.uint16)[0]
+
+    # Send ACK
+    conn.send(ACK_BYTE)
+
     while True:
 
-        buf_in = conn.recv(NUM_NEURONS)
+        buf_in = conn.recv(n_neurons)
         if not buf_in: 
             break
 
