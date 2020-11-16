@@ -16,3 +16,4 @@ This directory contains code for a simple version of the real-time filtering sys
     - `examine_results.ipynb`: Notebook for plotting latency test results
 - `julia`: Julia implementation of real-time filtering prototype
 - `python`: Python implementation of real-time filtering prototype
+- `rust`: Rust implementation of real-time filtering prototype
