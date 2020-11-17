@@ -116,7 +116,7 @@ class FilterLMS:
     def _input_to_vec(x):
         """Convert input matrix to vector."""
         
-        return x.reshape(-1, 1)
+        return x.T.reshape(-1, 1)
         
     def adapt(self, d, x):
         """Adapt weights using desired value and its input.
