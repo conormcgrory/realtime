@@ -1,4 +1,4 @@
-//! Module that implements "filter mode"
+//! Module that implements "processor mode"
 
 use std::thread;
 use std::net::{IpAddr, TcpListener, TcpStream, Shutdown};

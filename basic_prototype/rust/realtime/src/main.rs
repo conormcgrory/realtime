@@ -1,13 +1,13 @@
 //! Main module for realtime filtering system
 //!
-//! Parses command-line arguments and launches application in either "filter"
+//! Parses command-line arguments and launches application in either "processor"
 //! or "probe" mode.
 
 use std::net::IpAddr;
 
 use clap::{App, Arg, SubCommand, value_t};
 
-mod filter;
+mod processor;
 mod probe;
 
 
@@ -18,12 +18,12 @@ fn main() {
         .author("Conor McGrory <conor.mcgrory@stonybrook.edu>")
         .about("Real-time neural data filtering in Rust")
         .subcommand(
-            SubCommand::with_name("filter")
-                .about("Runs filter server")
+            SubCommand::with_name("processor")
+                .about("Runs processor server")
                 .arg(
                     Arg::with_name("host")
                         .long("host")
-                        .short("h")
+                        .short("a")
                         .takes_value(true)
                         .required(true)
                         .help("Host IP")
@@ -42,7 +42,7 @@ fn main() {
                 .about("Runs probe client")
                 .arg(
                     Arg::with_name("host")
-                        .short("h")
+                        .short("a")
                         .takes_value(true)
                         .required(true)
                         .help("Host IP")
@@ -72,12 +72,12 @@ fn main() {
         .get_matches();
 
     match matches.subcommand() {
-        ("filter", Some(filter_matches)) => {
-            let host = value_t!(filter_matches.value_of("host"), IpAddr)
+        ("processor", Some(processor_matches)) => {
+            let host = value_t!(processor_matches.value_of("host"), IpAddr)
                 .unwrap_or_else(|e| e.exit());
-            let port = value_t!(filter_matches.value_of("port"), u16)
+            let port = value_t!(processor_matches.value_of("port"), u16)
                 .unwrap_or_else(|e| e.exit());
-            filter::run(host, port);
+            processor::run(host, port);
         }
         ("probe", Some(probe_matches)) => {
             let host = value_t!(probe_matches.value_of("host"), IpAddr)
