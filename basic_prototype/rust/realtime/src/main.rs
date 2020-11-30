@@ -9,6 +9,7 @@ use clap::{App, Arg, SubCommand, value_t};
 
 mod processor;
 mod probe;
+mod filters;
 
 
 fn main() {

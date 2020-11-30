@@ -70,16 +70,17 @@ fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<u
 pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
 
     // Read input file (TODO: Move this into its own function)
+    println!("Loading data from {}...", in_fpath);
     let file = hdf5::File::open(in_fpath).unwrap();
     let dset = file.dataset("spks").unwrap();
     let spks = dset.read_2d::<u8>().unwrap();
+    println!("Done.");
 
+    println!("Connecting to {}:{}...", host, port);
     match TcpStream::connect((host, port)) {
         Ok(mut stream) => {
-
-            println!("Successfully connected to server in port {}", port);
-
-            println!("Sending header...");
+            println!("Done.");
+            println!("Sending header information...");
             let num_neurons = spks.len_of(Axis(0));
             let num_pts = spks.len_of(Axis(1));
             send_header(num_neurons as u16, &mut stream).expect("Failed to send header");
@@ -90,6 +91,7 @@ pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
             println!("Done.");
 
             // Write results to output file (TODO: Move this into its own function)
+            println!("Writing data to {}...", out_fpath);
             let file = hdf5::File::create(out_fpath).unwrap();
             let ds_filter_preds = file
                 .new_dataset::<u8>()
@@ -101,6 +103,7 @@ pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
                 .create("rt_times_us", num_pts)
                 .unwrap();
             ds_times_us.write(&times_us).unwrap(); 
+            println!("Done.");
         },
         Err(e) => {
             println!("Failed to connect: {}", e);
