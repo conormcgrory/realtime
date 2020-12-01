@@ -11,8 +11,7 @@ pub struct EchoFilter {}
 
 impl EchoFilter {
 
-    // TODO: Change this to f64
-    pub fn predict_next(&self, x: &Array1<u8>) -> Array1<u8> {
+    pub fn predict_next(&self, x: &Array1<f64>) -> Array1<f64> {
         return x.clone()
     }
 }

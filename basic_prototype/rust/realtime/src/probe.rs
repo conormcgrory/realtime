@@ -9,13 +9,36 @@ use ndarray::prelude::*;
 use hdf5;
 
 
-/// Send header to filter containing number of neurons in recording
+/// Byte sent for 'acknowledge' signal
+const ACK_BYTE: u8 = 0x06;
+
+
+/// Construct f64 vector from byte vector
+fn f64_vec_from_bytes(vec_1: &Vec<u8>) -> Vec<f64>{
+
+    let n_floats = vec_1.len() / 8;
+    let mut vec_2 = vec![0 as f64; n_floats];
+
+    for i in 0..n_floats {
+
+        // Load bytes for int into buffer
+        let mut buf = [0; 8];
+        for j in 0..8 {
+            buf[j] = vec_1[i * 8 + j];
+        }
+
+        // Decode f64 from bytes
+        vec_2[i] = f64::from_be_bytes(buf);
+    }
+
+    return vec_2;
+}
+
+/// Send header containing number of neurons in recording to processor
 fn send_header(num_neurons: u16, stream: &mut TcpStream) -> io::Result<()> {
 
-    // Encode header data to byte array
+    // Encode header data and write header to socket
     let hdr_bytes = num_neurons.to_be_bytes();
-
-    // Write header to socket
     stream.write(&hdr_bytes).unwrap();
 
     // Read response from filter
@@ -23,16 +46,34 @@ fn send_header(num_neurons: u16, stream: &mut TcpStream) -> io::Result<()> {
     stream.read_exact(&mut resp_bytes).unwrap();
 
     // Check for ACK character
-    if resp_bytes == [0x06] {
+    if resp_bytes == [ACK_BYTE] {
         return Ok(());
     } else {
         return Err(io::Error::new(io::ErrorKind::Other, "ACK not recieved"));
     }
 }
 
+// Send spike vector to processor
+fn send_spikes(stream: &mut TcpStream, spks: &Vec<u8>) -> io::Result<()> {
+    stream.write_all(&spks)
+}
+
+// Recieve filter prediction from probe
+fn recv_fpred(stream: &mut TcpStream, num_neurons: usize) -> io::Result<Vec<f64>> {
+
+    // Read bytes from stream
+    let mut buf = vec![0 as u8; num_neurons * 8];
+    stream.read_exact(&mut buf)?;
+
+    // Decode filter prediction from bytes
+    let fpred = f64_vec_from_bytes(&buf);
+
+    return Ok(fpred);
+}
+
 
 /// Send spike count vectors to filter and record and time response
-fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<u8>, Array1<f64>)> {
+fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<f64>, Array1<f64>)> {
 
     let num_neurons = spks.len_of(Axis(0));
     let num_pts = spks.len_of(Axis(1));
@@ -46,13 +87,12 @@ fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<u
         let t_start = Instant::now();
 
         // Write spike counts to socket
-        let buf_out = spks.column(i).to_vec();
-        stream.write(&buf_out).unwrap();
+        let spk_vec = spks.column(i).to_vec();
+        send_spikes(stream, &spk_vec).unwrap();
 
         // Read response from filter
-        let mut buf_in = vec![0 as u8; num_neurons];
-        stream.read_exact(&mut buf_in).unwrap();
-        let fpred = Array::from(buf_in);
+        let fpred_vec = recv_fpred(stream, num_neurons).unwrap();
+        let fpred = Array::from(fpred_vec);
 
         // Stop clock
         let time_ns = t_start.elapsed().as_nanos();
