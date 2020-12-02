@@ -12,6 +12,9 @@ use hdf5;
 /// Byte sent for 'acknowledge' signal
 const ACK_BYTE: u8 = 0x06;
 
+// Number of points in signal to read
+const N_PTS: usize = 10000;
+
 
 /// Construct f64 vector from byte vector
 fn f64_vec_from_bytes(vec_1: &Vec<u8>) -> Vec<f64>{
@@ -73,10 +76,9 @@ fn recv_fpred(stream: &mut TcpStream, num_neurons: usize) -> io::Result<Vec<f64>
 
 
 /// Send spike count vectors to filter and record and time response
-fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<f64>, Array1<f64>)> {
+fn send_signal(spks: Array2<u8>, num_pts: usize, stream: &mut TcpStream) -> io::Result<(Array2<f64>, Array1<f64>)> {
 
     let num_neurons = spks.len_of(Axis(0));
-    let num_pts = spks.len_of(Axis(1));
 
     let mut filter_preds = Array::zeros((num_neurons, num_pts));
     let mut times_us = Array::zeros(num_pts);
@@ -105,44 +107,76 @@ fn send_signal(spks: Array2<u8>, stream: &mut TcpStream) -> io::Result<(Array2<f
     return Ok((filter_preds, times_us));
 }
 
+fn load_spikes(in_fpath: &str) -> Array2<u8> {
+
+    let file = hdf5::File::open(in_fpath).unwrap();
+    let dset = file.dataset("spks").unwrap();
+    let spks = dset.read_2d::<u8>().unwrap();
+
+    return spks;
+}
+
+fn save_data(filter_preds: &Array2<f64>, times_us: &Array1<f64>, out_fpath: &str) -> () {
+
+    let file = hdf5::File::create(out_fpath).unwrap();
+
+    // Save filter predictions
+    let fp_shape = (filter_preds.len_of(Axis(0)), filter_preds.len_of(Axis(1)));
+    let ds_filter_preds = file
+        .new_dataset::<u8>()
+        .create("filter_preds", fp_shape)
+        .unwrap();
+    ds_filter_preds.write(filter_preds).unwrap(); 
+
+    // Save round-trip times
+    let n_pts = times_us.len_of(Axis(0));
+    let ds_times_us = file
+        .new_dataset::<f64>()
+        .create("rt_times_us", n_pts)
+        .unwrap();
+    ds_times_us.write(times_us).unwrap(); 
+}
+ 
 
 // Run probe mode
 pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
 
     // Read input file (TODO: Move this into its own function)
     println!("Loading data from {}...", in_fpath);
-    let file = hdf5::File::open(in_fpath).unwrap();
-    let dset = file.dataset("spks").unwrap();
-    let spks = dset.read_2d::<u8>().unwrap();
+    //let file = hdf5::File::open(in_fpath).unwrap();
+    //let dset = file.dataset("spks").unwrap();
+    //let spks = dset.read_2d::<u8>().unwrap();
+    let spks = load_spikes(in_fpath);
     println!("Done.");
 
     println!("Connecting to {}:{}...", host, port);
     match TcpStream::connect((host, port)) {
         Ok(mut stream) => {
+
             println!("Done.");
             println!("Sending header information...");
             let num_neurons = spks.len_of(Axis(0));
-            let num_pts = spks.len_of(Axis(1));
             send_header(num_neurons as u16, &mut stream).expect("Failed to send header");
             println!("Done.");
 
             println!("Sending signal...");
-            let (filter_preds, times_us) = send_signal(spks, &mut stream).expect("Failed to send signal");
+            let (filter_preds, times_us) = send_signal(spks, N_PTS, &mut stream).expect("Failed to send signal");
             println!("Done.");
 
             // Write results to output file (TODO: Move this into its own function)
             println!("Writing data to {}...", out_fpath);
-            let file = hdf5::File::create(out_fpath).unwrap();
-            let ds_filter_preds = file
-                .new_dataset::<u8>()
-                .create("filter_preds", (num_neurons, num_pts))
-                .unwrap();
-            ds_filter_preds.write(&filter_preds).unwrap(); 
-            let ds_times_us = file
-                .new_dataset::<f64>()
-                .create("rt_times_us", num_pts)
-                .unwrap();
-            ds_times_us.write(&times_us).unwrap(); 
+            //let file = hdf5::File::create(out_fpath).unwrap();
+            //let ds_filter_preds = file
+            //    .new_dataset::<u8>()
+            //    .create("filter_preds", (num_neurons, num_pts))
+            //    .unwrap();
+            //ds_filter_preds.write(&filter_preds).unwrap(); 
+            //let ds_times_us = file
+            //    .new_dataset::<f64>()
+            //    .create("rt_times_us", num_pts)
+            //    .unwrap();
+            //ds_times_us.write(&times_us).unwrap(); 
+            save_data(&filter_preds, &times_us, out_fpath);
             println!("Done.");
         },
         Err(e) => {
@@ -151,5 +185,3 @@ pub fn run(host: IpAddr, port: u16, in_fpath: &str, out_fpath: &str) {
     }
     println!("Terminated.");
 }
-
-

@@ -5,11 +5,17 @@ use std::net::{IpAddr, TcpListener, TcpStream};
 use std::io;
 use std::io::{Read, Write};
 use ndarray::prelude::*;
-use crate::filters::EchoFilter;
+use crate::filters::FilterAutoEcho;
 
 
 /// Byte sent for 'acknowledge' signal
 const ACK_BYTE: u8 = 0x06;
+
+// Number of past signal values to use for filter
+const FILTER_ORDER: u16 = 5;
+
+// Learning rate for filter
+const FILTER_MU: f64 = 0.0001;
 
 
 /// Encode f64 vector as byte vector
@@ -69,15 +75,9 @@ fn handle_client(mut stream: TcpStream) {
     let num_neurons = recv_header(&mut stream).unwrap();
     println!("Done.");
 
-    
-    // TODO: Add this!
-    // Convert spikes to 64-bit float array
-    //let spks_f64: Vec<f64> = spks_buf.iter().map(|&x| x as f64).collect();
-    //let spks_arr: Array1<f64> = Array::from(spks_buf);
- 
-     
     println!("Filtering signal...");
-    let mut flt = EchoFilter{};
+    //let mut flt = FilterAutoLMS::new(num_neurons, FILTER_ORDER, FILTER_MU);
+    let mut flt = FilterAutoEcho{};
     
     loop {
        

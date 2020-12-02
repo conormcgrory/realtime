@@ -190,6 +190,25 @@ class FilterAutoLMS:
         return self.flt_lms.predict(self.x_hist)
 
 
+class FilterAutoEcho:
+    """This class implements a dummy 'filter' that returns its input."""
+
+    def __init__(self):
+        pass
+
+    def predict_next(self, x):
+        """Update filter with new signal value and predict next value.
+
+        Args:
+            x (dim*1 array): New signal value
+
+        Returns:
+            (dim*1 array): Predicted next signal value
+        """
+
+        return x.astype('float64')
+
+
 def probe_mode(host, port, in_fpath, out_fpath):
     """Run program in mode meant to mimic neuropixel probe."""
 
@@ -275,7 +294,8 @@ def processor_mode(host, port):
     print('Filtering signal...')
 
     # Filter for data  
-    flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
+    #flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
+    flt = FilterAutoEcho()
 
     while True:
 
