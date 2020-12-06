@@ -126,11 +126,16 @@ class FilterLMS:
             x (dim*order array): Input array
         """
         
+        t_start_ns = time_ns()
+
         x_vec = self._input_to_vec(x)
         y = self.wts @ x_vec
         e = d - y
-        
-        self.wts += self.mu * e @ x_vec.T 
+        delta =  self.mu * e * x_vec.T 
+        self.wts += delta
+
+        time_us = (time_ns() - t_start_ns) / 1000
+        print(f'time (us): {time_us}')
 
     def predict(self, x):
         """Predict output for given input using current filter state.
@@ -167,7 +172,7 @@ class FilterAutoLMS:
 
     def __init__(self, dim, order, mu=0.01, wts_init='random'):
 
-        self.flt_lms = FilterLMS(dim, order, mu=mu, wts_init='random')
+        self.flt_lms = FilterLMS(dim, order, mu=mu, wts_init=wts_init)
         self.x_hist = np.zeros((dim, order))
 
     def predict_next(self, x):
@@ -294,8 +299,8 @@ def processor_mode(host, port):
     print('Filtering signal...')
 
     # Filter for data  
-    #flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
-    flt = FilterAutoEcho()
+    flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
+    #flt = FilterAutoEcho()
 
     while True:
 
