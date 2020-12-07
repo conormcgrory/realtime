@@ -125,17 +125,13 @@ class FilterLMS:
             d (dim*1 array): Desired value
             x (dim*order array): Input array
         """
-        
-        t_start_ns = time_ns()
 
         x_vec = self._input_to_vec(x)
+
         y = self.wts @ x_vec
         e = d - y
-        delta =  self.mu * e * x_vec.T 
-        self.wts += delta
+        self.wts += self.mu * e * x_vec.T 
 
-        time_us = (time_ns() - t_start_ns) / 1000
-        print(f'time (us): {time_us}')
 
     def predict(self, x):
         """Predict output for given input using current filter state.
