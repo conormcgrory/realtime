@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Script for creating test signal from Steinmetz data."""
 
 import os
@@ -6,14 +7,15 @@ import h5py
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 # Directory where raw Steinmetz files are stored
-INPUT_DIR = '/Users/cmcgrory/park_lab/realtime/basic_prototype/data/raw'
+RAW_DATA_DIR = 'data/raw'
 
 # Filenames to load data from (in order!)
-INPUT_FNAMES = ['steinmetz_part0.npz', 'steinmetz_part1.npz', 'steinmetz_part2.npz']
+RAW_DATA_FNAMES = ['steinmetz_part0.npz', 'steinmetz_part1.npz', 'steinmetz_part2.npz']
 
 # Output directory
-OUTPUT_DIR = '/Users/cmcgrory/park_lab/realtime/basic_prototype/data/processed'
+PROCESSED_DATA_DIR = 'data/processed'
 
 # Session to use for test signal
 SESSION_NUM = 11
@@ -22,8 +24,8 @@ SESSION_NUM = 11
 def main():
 
     # Load raw Steinmetz data from files
-    print(f'Loading Steinmetz data from {INPUT_DIR}...')
-    input_fpaths = [os.path.join(INPUT_DIR, f) for f in INPUT_FNAMES]
+    print(f'Loading Steinmetz data from {RAW_DATA_DIR}...')
+    input_fpaths = [os.path.join(RAW_DATA_DIR, f) for f in RAW_DATA_FNAMES]
     all_sessions = np.array([])
     for f in input_fpaths:
         all_sessions = np.hstack((all_sessions, np.load(f, allow_pickle=True)['dat']))
@@ -48,7 +50,7 @@ def main():
 
     # Save test signal to HDF5 file
     out_fname = f'r{SESSION_NUM:02d}_spks.h5'
-    out_fpath = os.path.join(OUTPUT_DIR, out_fname)
+    out_fpath = os.path.join(PROCESSED_DATA_DIR, out_fname)
     print(f'Writing to {out_fpath}...')
     with h5py.File(out_fpath, 'w') as f:
         f.create_dataset('spks', data=spks_all_trials)

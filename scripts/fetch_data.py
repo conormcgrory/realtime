@@ -1,11 +1,12 @@
+#!/usr/bin/env python3
 """Script for fetching Steinmetz data from server."""
 
 import os
 import requests
 
 
-# Directory where files are stored
-DATA_DIR = '/Users/cmcgrory/park_lab/realtime/basic_prototype/data/raw'
+# Relative path to directory where files are stored
+RAW_DATA_DIR = 'data/raw'
 
 # Filenames and URLs to download files from
 FILE_URLS = [
@@ -32,17 +33,16 @@ def fetch(url, fpath):
 
 def main():
     
-    print(f'Data directory: {DATA_DIR}')
+    print(f'Raw data directory: {RAW_DATA_DIR}')
     
     for fname, url in FILE_URLS:
         
-        fpath = os.path.join(DATA_DIR, fname)
+        fpath = os.path.join(RAW_DATA_DIR, fname)
         
         if os.path.isfile(fpath):
             print(f"File '{fname}' already exists")
         else:
-            print(f"File '{fname}' not found.")
-            print(f'Downloading from {url}...')
+            print(f"File '{fname}' not found. Downloading from {url}...")
             fetch(url, fpath)
             print('Done.')
 
