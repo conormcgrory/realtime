@@ -33,14 +33,14 @@ def main():
     
     # Select recording 
     data = all_sessions[SESSION_NUM]
-    bin_size = data['bin_size']
+    bin_size_sec = data['bin_size']
     spks = data['spks']
     n_neurons = spks.shape[0]
     n_trials = spks.shape[1]
     n_smps_trial = spks.shape[2]
     n_smps_total = n_trials * n_smps_trial
     print(f'Session: {SESSION_NUM}')
-    print(f'Bin size: {bin_size} sec')
+    print(f'Bin size: {bin_size_sec} sec')
     print(f'Num. trials: {n_trials}')
     print(f'Num. samples/trial: {n_smps_trial}')
     print(f'Num. samples total: {n_smps_total}')
@@ -49,11 +49,13 @@ def main():
     spks_all_trials = spks.reshape(n_neurons, -1)
 
     # Save test signal to HDF5 file
-    out_fname = f'r{SESSION_NUM:02d}_spks.h5'
+    out_fname = 'test_spks.h5'
     out_fpath = os.path.join(PROCESSED_DATA_DIR, out_fname)
     print(f'Writing to {out_fpath}...')
     with h5py.File(out_fpath, 'w') as f:
-        f.create_dataset('spks', data=spks_all_trials)
+        dset = f.create_dataset('spks', data=spks_all_trials)
+        dset.attrs['session_num'] = SESSION_NUM
+        dset.attrs['bin_size_sec'] = bin_size_sec
     print('Done.')
     
     
