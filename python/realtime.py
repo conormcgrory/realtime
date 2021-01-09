@@ -270,7 +270,7 @@ def probe_mode(host, port, in_fpath, out_fpath):
     print('Done.')
 
 
-def processor_mode(host, port):
+def processor_mode(host, port, filter_type):
     """Run program in mode meant to mimic 'processor' computer reading data"""
 
     print(f'Starting server at {host}:{port}...')
@@ -295,8 +295,12 @@ def processor_mode(host, port):
     print('Filtering signal...')
 
     # Filter for data  
-    flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
-    #flt = FilterAutoEcho()
+    if filter_type == 'echo':
+        flt = FilterAutoEcho()
+    elif filter_type == 'lms':
+        flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
+    else:
+        raise NotImplementedError(f"No such filter: '{filter_type}'")
 
     while True:
 
@@ -337,6 +341,7 @@ def parse_args():
     processor_parser = subparsers.add_parser('processor', help='Processor mode')
     processor_parser.add_argument('-a', '--host', required=True)
     processor_parser.add_argument('-p', '--port', required=True)
+    processor_parser.add_argument('-f', '--filter', required=True)
  
     return parser.parse_args()
 
@@ -344,12 +349,11 @@ def parse_args():
 def main():
 
     args = parse_args()
-    port = int(args.port)
     
     if args.mode == 'probe':
-        probe_mode(args.host, port, args.input, args.output)
+        probe_mode(args.host, int(args.port), args.input, args.output)
     elif args.mode == 'processor':
-        processor_mode(args.host, port)
+        processor_mode(args.host, int(args.port), args.filter)
     else:
         raise ValueError(f'"{args.mode}" not valid mode')
 
