@@ -5,7 +5,7 @@ use std::net::{IpAddr, TcpListener, TcpStream};
 use std::io;
 use std::io::{Read, Write};
 use ndarray::prelude::*;
-use crate::filters::FilterAutoEcho;
+use crate::filters::{FilterAuto, FilterAutoEcho, FilterAutoLMS};
 
 
 /// Byte sent for 'acknowledge' signal
@@ -66,7 +66,7 @@ fn recv_spikes(stream: &mut TcpStream, num_neurons: u16) -> io::Result<Vec<u8>> 
     Ok(buf.to_vec())
 }
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, use_lms: bool) {
 
     println!("Connected to probe at {}", stream.peer_addr().unwrap());
 
@@ -76,8 +76,8 @@ fn handle_client(mut stream: TcpStream) {
     println!("Done.");
 
     println!("Filtering signal...");
-    //let mut flt = FilterAutoLMS::new(num_neurons, FILTER_ORDER, FILTER_MU);
-    let mut flt = FilterAutoEcho{};
+    let mut flt_echo = FilterAutoEcho{};
+    let mut flt_lms = FilterAutoLMS::new(num_neurons, FILTER_ORDER, FILTER_MU);
     
     loop {
        
@@ -96,7 +96,10 @@ fn handle_client(mut stream: TcpStream) {
         let spks = Array::from(spks_f64);
 
         // Run filter on spike vector
-        let fpred = flt.predict_next(&spks);
+        let fpred = match use_lms {
+            true => flt_lms.predict_next(&spks),
+            false => flt_echo.predict_next(&spks)
+        };
 
         // Write filter prediction to probe
         send_fpred(&mut stream, &fpred.to_vec()).unwrap();
@@ -105,7 +108,7 @@ fn handle_client(mut stream: TcpStream) {
     println!("Done.");
 }
 
-pub fn run(host: IpAddr, port: u16) {
+pub fn run(host: IpAddr, port: u16, use_lms: bool) {
 
     println!("Starting server at {}:{}...", host, port);
     let listener = TcpListener::bind((host, port)).unwrap();
@@ -115,7 +118,7 @@ pub fn run(host: IpAddr, port: u16) {
         match stream {
             Ok(stream) => {
                 thread::spawn(move|| {
-                    handle_client(stream)
+                    handle_client(stream, use_lms)
                 });
             }
             Err(e) => {

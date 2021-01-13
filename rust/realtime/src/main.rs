@@ -36,6 +36,14 @@ fn main() {
                         .takes_value(true)
                         .required(true)
                         .help("Port")
+                )
+                 .arg(
+                    Arg::with_name("filter")
+                        .long("filter")
+                        .short("f")
+                        .takes_value(true)
+                        .required(true)
+                        .help("Filter type ('lms' or 'echo')")
                 ),
         )
         .subcommand(
@@ -43,6 +51,7 @@ fn main() {
                 .about("Runs probe client")
                 .arg(
                     Arg::with_name("host")
+                        .long("host")
                         .short("a")
                         .takes_value(true)
                         .required(true)
@@ -50,6 +59,7 @@ fn main() {
                 )
                 .arg(
                     Arg::with_name("port")
+                        .long("port")
                         .short("p")
                         .takes_value(true)
                         .required(true)
@@ -57,6 +67,7 @@ fn main() {
                 )
                 .arg(
                     Arg::with_name("input")
+                        .long("input")
                         .short("i")
                         .takes_value(true)
                         .required(true)
@@ -64,6 +75,7 @@ fn main() {
                 )
                 .arg(
                     Arg::with_name("output")
+                        .long("output")
                         .short("o")
                         .takes_value(true)
                         .required(true)
@@ -78,7 +90,13 @@ fn main() {
                 .unwrap_or_else(|e| e.exit());
             let port = value_t!(processor_matches.value_of("port"), u16)
                 .unwrap_or_else(|e| e.exit());
-            processor::run(host, port);
+            let filter = processor_matches.value_of("filter").unwrap();
+            let use_lms = match filter {
+                "echo" => false,
+                "lms" => true,
+                _ => panic!("Invalid filter!")
+            };
+            processor::run(host, port, use_lms);
         }
         ("probe", Some(probe_matches)) => {
             let host = value_t!(probe_matches.value_of("host"), IpAddr)

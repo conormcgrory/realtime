@@ -4,20 +4,24 @@ use ndarray::prelude::*;
 use ndarray::stack;
 
 
-#[allow(dead_code)]
+
 /// Dummy 'filter' that returns unmodified input as 'prediction'
 pub struct FilterAutoEcho {}
 
-#[allow(dead_code)]
-impl FilterAutoEcho {
+/// Trait for autoregressive adaptive filters
+pub trait FilterAuto {
+    fn predict_next(&mut self, x: &Array1<f64>) -> Array1<f64>;
+}
 
-    pub fn predict_next(&self, x: &Array1<f64>) -> Array1<f64> {
+impl FilterAuto for FilterAutoEcho {
+
+    fn predict_next(&mut self, x: &Array1<f64>) -> Array1<f64> {
         return x.clone()
     }
 }
 
 
-/// Least-mean-squares AdaptiveFilter
+/// Least-mean-squares AdaptiveFilter (needed for FilterAutoLMS)
 pub struct FilterLMS {
     mu: f64,
     wts: Array2<f64>,
@@ -57,7 +61,8 @@ impl FilterLMS {
     }
 }
     
-/// AutoFilter that uses LMS to filter autoregressive process
+
+/// FilterAuto that uses LMS to filter autoregressive process
 pub struct FilterAutoLMS {
     flt_lms: FilterLMS,
     x_hist: Array2<f64>,
@@ -71,8 +76,11 @@ impl FilterAutoLMS {
             x_hist: Array::zeros((dim as usize, order as usize)),
         }
     }
+}
 
-    pub fn predict_next(&mut self, x: &Array1<f64>) -> Array1<f64> {
+impl FilterAuto for FilterAutoLMS {
+
+    fn predict_next(&mut self, x: &Array1<f64>) -> Array1<f64> {
 
         // Convert x to 2D array
         let x_2d = x.clone().insert_axis(Axis(1));
