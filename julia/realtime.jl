@@ -6,9 +6,27 @@ using HDF5
 using Statistics
 using Printf
 
+# Byte used for "acknowledge" signal
 const ACK_BYTE = 0x06
+
+# Number of past signal values to use for filter
+FILTER_ORDER = 5
+
+# Learning rate for filter
+FILTER_MU = 0.01
+
+# Number of points in signal to read
 const N_PTS = 1000
-const N_NEURONS = 698
+
+
+# Echo filter
+mutable struct FilterAutoEcho
+    FilterAutoEcho() = new()
+end
+
+function predict_next(flt::FilterAutoEcho, x::Array{Float64})::Array{Float64}
+    return x
+end
 
 
 function hdr_encode(n_neurons::Integer)
@@ -113,7 +131,7 @@ function probe_mode(host::IPAddr, port::Integer, in_fpath::String, out_fpath::St
 end
 
 
-function processor_mode(host::IPAddr, port::Integer)
+function processor_mode(host::IPAddr, port::Integer, filter_type::String)
 
     # Connect to client
     println("Starting server at $host:$port...")
@@ -136,16 +154,33 @@ function processor_mode(host::IPAddr, port::Integer)
 
     println("Filtering signal...")
 
+    if filter_type == "echo"
+        flt = FilterAutoEcho()
+    else
+        error("Filter not implemented!")
+    end
+
     while !eof(conn)
 
         # Receive spikes from probe (1 byte per neuron)
-        spks = spks_decode(read(conn, n_neurons))
+        spks = convert(Array{Float64}, spks_decode(read(conn, n_neurons)))
 
         # "Echo filter"
-        fpred = convert(Array{Float64}, spks)
+        fpred = predict_next(flt, spks)
 
         # Send filter prediction to probe
-        write(conn, fpred_encode(fpred))
+        #write(conn, fpred_encode(fpred))
+        
+        fpred_bytes = fpred_encode(fpred)
+
+        t_start_ns = time_ns()
+
+        write(conn, fpred_bytes)
+
+        time = (time_ns() - t_start_ns) / 1000
+        println("time (us):")
+        println(time)
+
 
     end
 
@@ -185,6 +220,8 @@ function main()
             arg_type = IPv4 
         "--port", "-p"
             arg_type = Int
+        "--filter", "-f"
+            arg_type = String
     end
 
     args = parse_args(settings)
@@ -195,7 +232,7 @@ function main()
         probe_mode(cargs["host"], cargs["port"], cargs["input"], cargs["output"])
     elseif args["%COMMAND%"] == "processor"
         cargs = args["processor"]
-        processor_mode(cargs["host"], cargs["port"])
+        processor_mode(cargs["host"], cargs["port"], cargs["filter"])
     end
 end
 

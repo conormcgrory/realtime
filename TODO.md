@@ -12,6 +12,7 @@
     - [ ] `08_results_compare.ipynb`
 - [x] Move script functionality into notebooks
 - [x] Change notebook names
+- [ ] Write LMS filter for Julia prototype
 - [ ] Consider using HTML tables in notebooks
 - [ ] Think about table of contents
 - [ ] Add `--filter` option to Julia and Rust implementations
