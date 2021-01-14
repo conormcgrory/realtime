@@ -16,7 +16,7 @@ FILTER_ORDER = 5
 FILTER_MU = 0.01
 
 # Number of points in signal to read
-const N_PTS = 1000
+const N_PTS = 10000
 
 
 # Echo filter
@@ -39,8 +39,8 @@ function hdr_decode(hdr_bytes::Array{UInt8})
 end
 
 
-function spks_encode(spks::Array{Int8})
-    return reinterpret(UInt8, spks)
+function spks_encode(spks::Array{Int8})::Array{UInt8, 1}
+    return reinterpret(UInt8, spks)[:]
 end
 
 
@@ -49,8 +49,8 @@ function spks_decode(spk_bytes::Array{UInt8})
 end
 
 
-function fpred_encode(fpred::Array{Float64})
-    return reshape(reinterpret(UInt8, fpred), :, 1)
+function fpred_encode(fpred::Array{Float64})::Array{UInt8, 1}
+    return reshape(reinterpret(UInt8, fpred), :, 1)[:, 1]
 end
 
 
@@ -98,11 +98,14 @@ function probe_mode(host::IPAddr, port::Integer, in_fpath::String, out_fpath::St
 
         t_start_ns = time_ns()
 
-        # Write spike counts (just neuron 1)
-        write(conn, spks_encode(spks[:, i]))
+        # Write spike counts
+        spks_bytes = spks_encode(spks[:, i])
+        write(conn, spks_bytes)
 
         # Read filter value from client (8 bytes per neuron)
-        filter_preds[:, i] = fpred_decode(read(conn, n_neurons * 8))
+        fpred_bytes = Array{UInt8}(undef, n_neurons * 8)
+        read!(conn, fpred_bytes)
+        filter_preds[:, i] = fpred_decode(fpred_bytes)
 
         # Compute round-trip latency (microseconds)
         rt_times_us[i] = (time_ns() - t_start_ns) / 1000
@@ -168,19 +171,9 @@ function processor_mode(host::IPAddr, port::Integer, filter_type::String)
         # "Echo filter"
         fpred = predict_next(flt, spks)
 
-        # Send filter prediction to probe
-        #write(conn, fpred_encode(fpred))
-        
+        # Send filter predictions to probe
         fpred_bytes = fpred_encode(fpred)
-
-        t_start_ns = time_ns()
-
         write(conn, fpred_bytes)
-
-        time = (time_ns() - t_start_ns) / 1000
-        println("time (us):")
-        println(time)
-
 
     end
 
