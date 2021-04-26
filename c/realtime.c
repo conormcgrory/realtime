@@ -16,9 +16,11 @@ for further analysis.
 #include <sys/socket.h>
 
 
-// TODO: Replace these eventually
+// TODO: Replace these with arguments
 #define HOST "127.0.0.1"
 #define PORT 8889
+
+// TODO: Replace this with header data
 #define N_NEURONS 5
 
 
