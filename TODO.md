@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Update README.md
+- [x] Update README.md
 - [x] Update and organize notebooks
     - [x] `01_overview.ipynb`
     - [x] `02_raw_data.ipynb`
