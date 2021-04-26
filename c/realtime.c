@@ -11,27 +11,15 @@ for further analysis.
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h> 
-#include <getopt.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
+
+// TODO: Replace these eventually
 #define HOST "127.0.0.1"
 #define PORT 8889
-
-
-// TODO: Write argument parsing function using GNU getopt
-
-// TODO: Write 'probe_mode()' function
-
-// TODO: Write 'processor_mode()' function
-
-// TODO: Write echo filter
-
-// TODO: Write LMS filter
-
-
-
-const char message[] = "Hello sockets world\n";
+#define N_NEURONS 5
 
 
 // Probe mode
@@ -39,50 +27,110 @@ int probe_mode(char* host, int port) {
 
     printf("probe mode!\n");
 
-	int serverFd;
+    int spks[N_NEURONS] = {1, 2, 3, 4, 5};
+    int filter_preds[N_NEURONS];
+
+	int sock;
   	struct sockaddr_in server;
-  	int len;
-  	//int port = 1234;
-  	//char *server_ip = "127.0.0.1";
-  	char *buffer = "hello server";
-  	//if (argc == 3) {
-    // 	server_ip = argv[1];
-    //  port = atoi(argv[2]);
-  	//}
-  	serverFd = socket(AF_INET, SOCK_STREAM, 0);
-  	if (serverFd < 0) {
+
+	// Create socket
+  	sock = socket(AF_INET, SOCK_STREAM, 0);
+  	if (sock < 0) {
     	perror("Cannot create socket");
     	exit(1);
   	}
+
+    // Connect to server
   	server.sin_family = AF_INET;
   	server.sin_addr.s_addr = inet_addr(host);
   	server.sin_port = htons(port);
-  	len = sizeof(server);
-  	if (connect(serverFd, (struct sockaddr *)&server, len) < 0) {
+  	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
     	perror("Cannot connect to server");
     	exit(2);
   	}
 
-  	if (write(serverFd, buffer, strlen(buffer)) < 0) {
-    	perror("Cannot write");
-    	exit(3);
-  	}
-  	char recv[1024];
-  	memset(recv, 0, sizeof(recv));
-  	if (read(serverFd, recv, sizeof(recv)) < 0) {
-    	perror("cannot read");
-    	exit(4);
-  	}
-  	printf("Received %s from server\n", recv);
-  	close(serverFd);
-  	return 0;
+    // Send spike counts
+    if (send(sock, &spks, N_NEURONS * sizeof(int), 0) < 0) {
+        perror("Send failed");
+        exit(3);
+    }
+  
+    // Receive a reply from the server
+    if (recv(sock, &filter_preds, N_NEURONS * sizeof(int), 0) < 0) {
+        puts("recv failed");
+        return 0;
+    }
+  
+    // Print response
+    printf("Server reply :\n");
+    for (int i = 0; i < N_NEURONS; i++) {
+        printf("%d\n", filter_preds[i]);
+    }
+  
+    // close the socket
+    close(sock);
+    return 0;
 }
 
 
 // Processor mode
 int processor_mode(char* host, int port) {
 
-	// TODO: Remove this eventually
+	int socket_desc, client_sock, c, read_size;
+    struct sockaddr_in server, client;
+    int message[N_NEURONS];
+  
+    // Create socket
+    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_desc == -1) {
+        printf("Could not create socket");
+    }
+  
+    // Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(port);
+  
+    // Bind the socket
+    if (bind(socket_desc, (struct sockaddr*)&server, sizeof(server)) < 0) {
+        perror("bind failed. Error");
+        return 1;
+    }
+  
+    // Listen to the socket
+    listen(socket_desc, 3);
+  
+    puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
+  
+    // accept connection from an incoming client
+    client_sock = accept(socket_desc, (struct sockaddr*)&client, (socklen_t*)&c);
+  
+    if (client_sock < 0) {
+        perror("accept failed");
+        return 1;
+    }
+  
+    puts("Connection accepted");
+  
+    // Receive a message from client
+    while ((read_size = recv(client_sock, &message, N_NEURONS * sizeof(int), 0)) > 0) {
+  
+        write(client_sock, &message, N_NEURONS * sizeof(int));
+    }
+  
+    if (read_size == 0) {
+        puts("Client disconnected");
+    }
+    else if (read_size == -1) {
+        perror("recv failed");
+    }
+ 	return 0;
+} 
+
+
+int processor_mode_old(char* host, int port) {
+
     printf("processor mode!\n");
 
 	/* Echo server code */
