@@ -6,7 +6,8 @@
 - [x] Echo server
 - [x] Change echo message from string to spike counts
 - [x] Change server response from int to float
-- [ ] Write header exchange in order to allow number of neurons to differ
+- [x] Write header exchange in order to allow number of neurons to differ
+- [ ] Make code work with non-constant number of neurons
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Get probe to read from HDF5 file
 - [ ] Write LMS filter
@@ -16,4 +17,8 @@
 
 - Will eventually need more standardized way of sending and recieving data, to deal with endianness issues between different machines
 - Also need to eventually think about clean way to write protocol on top of TCP, so that header exchange is abstracted away
+    - This could be done the way TCP does it, with a `struct` containing connection information
+    - `protocol.c` file defines two structs: one for probe connection, other for processor connection
+    - It also defines `connect_probe()` and `connect_processor()`, as well as `close_probe()` and `close_processor()` methods
+    - Each connection object also has send and recieve methods, which can be used for exchange of data
 - Neither of these concerns should matter at the prototyping stage, however

@@ -23,12 +23,16 @@ for further analysis.
 // TODO: Replace this with header data
 #define N_NEURONS 5
 
+// Code processor sends to probe to acknowledge header
+const int ACK_CODE = 1;
+
 
 // Probe mode
 int probe_mode(char* host, int port) {
 
     // Dummy data -- replace with data from HDF5 file
     int spks[N_NEURONS] = {1, 2, 3, 4, 5};
+    int n_neurons = N_NEURONS;
 
 	// Create socket
   	int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -46,6 +50,23 @@ int probe_mode(char* host, int port) {
     	perror("Cannot connect to server");
     	return 1;
   	}
+
+    // Send header
+    if (send(sock, &n_neurons, sizeof(int), 0) < 0) {
+        perror("Send failed");
+        return 1;
+    }
+
+    // Receive ACK
+    int hdr_resp;
+    if (recv(sock, &hdr_resp, sizeof(int), 0) < 0) {
+        perror("recv failed");
+        return 1;
+    }
+    if (hdr_resp != ACK_CODE) {
+        perror("Response to header not ACK");
+        return 1;
+    }
 
     // Send spike counts
     if (send(sock, &spks, N_NEURONS * sizeof(int), 0) < 0) {
@@ -106,6 +127,19 @@ int processor_mode(char* host, int port) {
         return 1;
     }
     puts("Connection accepted");
+
+    // Receive header
+    int n_neurons;
+    if (recv(sock_client, &n_neurons, sizeof(int), 0) < 0) {
+        perror("recv failed");
+        return 1;
+    }
+
+    // Send ACK
+    if (send(sock_client, &ACK_CODE, sizeof(int), 0) < 0) {
+        perror("Send failed");
+        return 1;
+    }
   
     while(1) {
 
