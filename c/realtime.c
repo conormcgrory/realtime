@@ -27,50 +27,48 @@ for further analysis.
 // Probe mode
 int probe_mode(char* host, int port) {
 
-    printf("probe mode!\n");
-
+    // Dummy data -- replace with data from HDF5 file
     int spks[N_NEURONS] = {1, 2, 3, 4, 5};
-    int filter_preds[N_NEURONS];
-
-	int sock;
-  	struct sockaddr_in server;
 
 	// Create socket
-  	sock = socket(AF_INET, SOCK_STREAM, 0);
+  	int sock = socket(AF_INET, SOCK_STREAM, 0);
   	if (sock < 0) {
     	perror("Cannot create socket");
-    	exit(1);
+    	return 1;
   	}
 
     // Connect to server
+  	struct sockaddr_in server;
   	server.sin_family = AF_INET;
   	server.sin_addr.s_addr = inet_addr(host);
   	server.sin_port = htons(port);
   	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
     	perror("Cannot connect to server");
-    	exit(2);
+    	return 1;
   	}
 
     // Send spike counts
     if (send(sock, &spks, N_NEURONS * sizeof(int), 0) < 0) {
         perror("Send failed");
-        exit(3);
+        return 1;
     }
   
     // Receive a reply from the server
-    if (recv(sock, &filter_preds, N_NEURONS * sizeof(int), 0) < 0) {
-        puts("recv failed");
-        return 0;
+    double filter_preds[N_NEURONS];
+    if (recv(sock, &filter_preds, N_NEURONS * sizeof(double), 0) < 0) {
+        perror("recv failed");
+        return 1;
     }
   
     // Print response
-    printf("Server reply :\n");
+    puts("Server reply:");
     for (int i = 0; i < N_NEURONS; i++) {
-        printf("%d\n", filter_preds[i]);
+        printf("%f\n", filter_preds[i]);
     }
   
-    // close the socket
+    // Close socket
     close(sock);
+
     return 0;
 }
 
@@ -78,123 +76,73 @@ int probe_mode(char* host, int port) {
 // Processor mode
 int processor_mode(char* host, int port) {
 
-	int socket_desc, client_sock, c, read_size;
-    struct sockaddr_in server, client;
-    int message[N_NEURONS];
-  
     // Create socket
-    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_desc == -1) {
-        printf("Could not create socket");
+    int sock_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_desc < 0) {
+        puts("Could not create socket");
+        return 1;
     }
   
-    // Prepare the sockaddr_in structure
+    // Bind socket
+    struct sockaddr_in server;
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(port);
-  
-    // Bind the socket
-    if (bind(socket_desc, (struct sockaddr*)&server, sizeof(server)) < 0) {
-        perror("bind failed. Error");
+    if (bind(sock_desc, (struct sockaddr*)&server, sizeof(server)) < 0) {
+        perror("bind failed");
         return 1;
     }
   
     // Listen to the socket
-    listen(socket_desc, 3);
-  
+    listen(sock_desc, 3);
     puts("Waiting for incoming connections...");
-    c = sizeof(struct sockaddr_in);
   
-    // accept connection from an incoming client
-    client_sock = accept(socket_desc, (struct sockaddr*)&client, (socklen_t*)&c);
-  
-    if (client_sock < 0) {
+    // Accept connection from incoming client
+    struct sockaddr_in client; 
+    int c = sizeof(struct sockaddr_in);
+    int sock_client = accept(sock_desc, (struct sockaddr*)&client, (socklen_t*)&c);
+    if (sock_client < 0) {
         perror("accept failed");
         return 1;
     }
-  
     puts("Connection accepted");
   
-    // Receive a message from client
-    while ((read_size = recv(client_sock, &message, N_NEURONS * sizeof(int), 0)) > 0) {
-  
-        write(client_sock, &message, N_NEURONS * sizeof(int));
+    while(1) {
+
+        // Recieve spikes from probe
+        int spks_int[N_NEURONS];
+        int read_size = recv(sock_client, &spks_int, N_NEURONS * sizeof(int), 0);
+        if (read_size == 0) {
+            puts("Client disconnected");
+            break;
+        }
+        else if (read_size == -1) {
+            perror("recv failed");
+            return 1;
+        }
+
+        // Convert spikes to double
+        double spks_double[N_NEURONS];
+        for (int i = 0; i < N_NEURONS; i++) {
+            spks_double[i] = (double) spks_int[i];
+        }
+
+        // Echo message back to probe
+        write(sock_client, &spks_double, N_NEURONS * sizeof(double));
     }
-  
-    if (read_size == 0) {
-        puts("Client disconnected");
-    }
-    else if (read_size == -1) {
-        perror("recv failed");
-    }
- 	return 0;
+
+    // Close sockets
+    close(sock_desc);
+    close(sock_client);
+    
+    return 0;
 } 
-
-
-int processor_mode_old(char* host, int port) {
-
-    printf("processor mode!\n");
-
-	/* Echo server code */
-
-	int serverFd, clientFd;
-  	struct sockaddr_in server, client;
-  	int len;
-  	//int port = 1234;
-  	char buffer[1024];
-  	//if (argc == 2) {
-    //	port = atoi(argv[1]);
-  	//}
-  	serverFd = socket(AF_INET, SOCK_STREAM, 0);
-  	if (serverFd < 0) {
-    	perror("Cannot create socket");
-    	exit(1);
-  	}
-  	server.sin_family = AF_INET;
-  	server.sin_addr.s_addr = INADDR_ANY;
-  	server.sin_port = htons(port);
-  	len = sizeof(server);
-  	if (bind(serverFd, (struct sockaddr *)&server, len) < 0) {
-    	perror("Cannot bind sokcet");
-    	exit(2);
-  	}
-  	if (listen(serverFd, 10) < 0) {
-    	perror("Listen error");
-    	exit(3);
-  	}
-  	while (1) {
-    	len = sizeof(client);
-    	printf("waiting for clients\n");
-    	if ((clientFd = accept(serverFd, (struct sockaddr *)&client, &len)) < 0) {
-      		perror("accept error");
-      		exit(4);
-    	}
-    	char *client_ip = inet_ntoa(client.sin_addr);
-    	printf("Accepted new connection from a client %s:%d\n", client_ip, ntohs(client.sin_port));
-    	memset(buffer, 0, sizeof(buffer));
-    	int size = read(clientFd, buffer, sizeof(buffer));
-    	if ( size < 0 ) {
-      		perror("read error");
-      		exit(5);
-    	}
-    	printf("received %s from client\n", buffer);
-    	if (write(clientFd, buffer, size) < 0) {
-      		perror("write error");
-      		exit(6);
-    	}
-    	close(clientFd);
-  	}
-
-  close(serverFd);
-  return 0;
-
-}
 
 
 // Print usage message
 void print_usage() {
 
-    printf("Usage: realtime [probe, processor]\n");
+    puts("Usage: realtime [probe, processor]");
 
 }
 
