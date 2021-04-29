@@ -20,8 +20,6 @@ for further analysis.
 #define HOST "127.0.0.1"
 #define PORT 8889
 
-// TODO: Replace this with header data
-#define N_NEURONS 5
 
 // Code processor sends to probe to acknowledge header
 const int ACK_CODE = 1;
@@ -30,9 +28,11 @@ const int ACK_CODE = 1;
 // Probe mode
 int probe_mode(char* host, int port) {
 
-    // Dummy data -- replace with data from HDF5 file
-    int spks[N_NEURONS] = {1, 2, 3, 4, 5};
-    int n_neurons = N_NEURONS;
+
+    // TODO: Replace this with HDF5 data
+    const int n_neurons = 6;
+    int spks[n_neurons] = {1, 2, 3, 4, 5, 6};
+
 
 	// Create socket
   	int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -69,24 +69,30 @@ int probe_mode(char* host, int port) {
     }
 
     // Send spike counts
-    if (send(sock, &spks, N_NEURONS * sizeof(int), 0) < 0) {
+    if (send(sock, &spks, n_neurons * sizeof(int), 0) < 0) {
         perror("Send failed");
         return 1;
     }
   
-    // Receive a reply from the server
-    double filter_preds[N_NEURONS];
-    if (recv(sock, &filter_preds, N_NEURONS * sizeof(double), 0) < 0) {
+    // Memory for storing filter predictions
+    double* filter_preds = (double*) malloc(n_neurons * sizeof(double));
+
+    // Receive predictions from the server
+    if (recv(sock, filter_preds, n_neurons * sizeof(double), 0) < 0) {
         perror("recv failed");
+        free(filter_preds);
         return 1;
     }
   
     // Print response
     puts("Server reply:");
-    for (int i = 0; i < N_NEURONS; i++) {
+    for (int i = 0; i < n_neurons; i++) {
         printf("%f\n", filter_preds[i]);
     }
-  
+
+    // Free allocated memory
+    free(filter_preds);
+ 
     // Close socket
     close(sock);
 
@@ -140,12 +146,17 @@ int processor_mode(char* host, int port) {
         perror("Send failed");
         return 1;
     }
-  
+
+    // Array for storing spikes 
+    int* spks_int = (int*) malloc(n_neurons * sizeof(int));
+
+    // Array for storing spikes converted to doubles
+    double* spks_double = (double*) malloc(n_neurons * sizeof(double));
+
     while(1) {
 
         // Recieve spikes from probe
-        int spks_int[N_NEURONS];
-        int read_size = recv(sock_client, &spks_int, N_NEURONS * sizeof(int), 0);
+        int read_size = recv(sock_client, spks_int, n_neurons * sizeof(int), 0);
         if (read_size == 0) {
             puts("Client disconnected");
             break;
@@ -156,14 +167,17 @@ int processor_mode(char* host, int port) {
         }
 
         // Convert spikes to double
-        double spks_double[N_NEURONS];
-        for (int i = 0; i < N_NEURONS; i++) {
+        for (int i = 0; i < n_neurons; i++) {
             spks_double[i] = (double) spks_int[i];
         }
 
         // Echo message back to probe
-        write(sock_client, &spks_double, N_NEURONS * sizeof(double));
+        write(sock_client, spks_double, n_neurons * sizeof(double));
     }
+
+    // Free memory
+    free(spks_int);
+    free(spks_double);
 
     // Close sockets
     close(sock_desc);
