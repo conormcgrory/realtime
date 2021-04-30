@@ -8,7 +8,7 @@
 - [x] Change server response from int to float
 - [x] Write header exchange in order to allow number of neurons to differ
 - [x] Make code work with non-constant number of neurons
-- [ ] Change memory allocation from stack to heap
+- [ ] Set up project with CMake and Conan
 - [ ] Get probe to read from HDF5 file
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Write LMS filter
@@ -25,3 +25,4 @@
     - Each connection object also has send and recieve methods, which can be used for exchange of data
 - Neither of these concerns should matter at the prototyping stage, however
 - Probably should consider building C++ prototype; C++ has better support for math
+- Looked into possibility of using variable length arrays instead of heap allocation; doesn't seem like common practice

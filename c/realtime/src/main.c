@@ -16,9 +16,15 @@ for further analysis.
 #include <sys/socket.h>
 
 
+// TODO: Figure out how to add HDF5 dependency
+//#include "hdf5.h"
+
+
+
 // TODO: Replace these with arguments
 #define HOST "127.0.0.1"
 #define PORT 8889
+//#define IN_FPATH "../data/processed/s11_spks.h5"
 
 
 // Code processor sends to probe to acknowledge header
@@ -195,6 +201,10 @@ void print_usage() {
 }
 
 int main(int argc, char **argv) {
+
+    // TODO: Finish adding this!
+    //hid_t file = H5Fopen (IN_FPATH, H5F_ACC_RDONLY, H5P_DEFAULT);
+    //hid_t dset = H5Dopen (file, "spks", H5P_DEFAULT);
 
     // Parse mode ('probe' or 'processor') from argument list
     if (argc < 2) {
