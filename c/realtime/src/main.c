@@ -14,17 +14,14 @@ for further analysis.
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-
-// TODO: Figure out how to add HDF5 dependency
-//#include "hdf5.h"
+#include "hdf5.h"
 
 
 
 // TODO: Replace these with arguments
 #define HOST "127.0.0.1"
 #define PORT 8889
-//#define IN_FPATH "../data/processed/s11_spks.h5"
+#define IN_FPATH "../data/processed/s11_spks.h5"
 
 
 // Code processor sends to probe to acknowledge header
