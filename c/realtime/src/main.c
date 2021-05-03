@@ -22,6 +22,7 @@ for further analysis.
 #define HOST "127.0.0.1"
 #define PORT 8889
 #define IN_FPATH "../../data/processed/test_spks_clang.h5"
+#define OUT_FPATH "../../data/results/c_echo.h5"
 
 
 // Code processor sends to probe to acknowledge header
@@ -65,7 +66,7 @@ int get_data_dims(char* in_fpath, int* n_pts, int* n_neurons) {
 int load_data(char* in_fpath, int* data) {
 
     // Open file
-    hid_t file = H5Fopen(IN_FPATH, H5F_ACC_RDONLY, H5P_DEFAULT);
+    hid_t file = H5Fopen(in_fpath, H5F_ACC_RDONLY, H5P_DEFAULT);
     hid_t dset = H5Dopen(file, "spks", H5P_DEFAULT);
 
     int status = H5Dread(dset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
@@ -76,6 +77,36 @@ int load_data(char* in_fpath, int* data) {
 
     // Close file
     H5Dclose(dset);
+    H5Fclose(file);
+
+    return 0;
+}
+
+
+int save_data(char* out_fpath, double* fpreds, int n_pts, int n_neurons) {
+
+    // Create HDF5 file
+    hid_t file = H5Fcreate(out_fpath, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    // Create dataspace
+    hsize_t dims[2]; 
+    dims[0] = n_pts;
+    dims[1] = n_neurons;
+    hid_t dspace_fpreds = H5Screate_simple (2, dims, NULL);
+
+    // Create dataset 
+    hid_t dset_fpreds = H5Dcreate(file, "filter_preds", H5T_IEEE_F64LE, dspace_fpreds, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    
+    // Write data
+    int status = H5Dwrite(dset_fpreds, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, fpreds);
+    if (status != 0) {
+        fprintf(stderr, "Failed to write output data\n");
+        return 1;
+    }
+
+    // Close file
+    H5Dclose(dset_fpreds);
+    H5Sclose(dspace_fpreds);
     H5Fclose(file);
 
     return 0;
@@ -134,32 +165,36 @@ int probe_mode(char* host, int port) {
         return 1;
     }
 
-
-    // TODO: Send all spike counts and save all filter predictions
-    // Send spike counts
     
-    if (send(sock, spks[0], n_neurons * sizeof(int), 0) < 0) {
-        perror("Send failed");
-        return 1;
+    // Allocate array for spike counts
+    double** filter_preds = (double **) malloc(n_pts * sizeof(double *));
+    filter_preds[0] = (double *) malloc(n_pts * n_neurons * sizeof(double));
+    for (int i = 1; i < n_pts; i++) {
+        filter_preds[i] = filter_preds[0] + i * n_neurons;
     }
-  
-    // Memory for storing filter predictions
-    double* filter_preds = (double*) malloc(n_neurons * sizeof(double));
 
-    // Receive predictions from the server
-    if (recv(sock, filter_preds, n_neurons * sizeof(double), 0) < 0) {
-        perror("recv failed");
-        free(filter_preds);
-        return 1;
+    for (int k = 0; k < n_pts; k++) {
+
+        // Send spike counts
+        if (send(sock, spks[k], n_neurons * sizeof(int), 0) < 0) {
+            perror("send failed");
+            return 1;
+        }
+  
+        // Receive predictions from the server
+        if (recv(sock, filter_preds[k], n_neurons * sizeof(double), 0) < 0) {
+            perror("recv failed");
+            return 1;
+        }
     }
   
-    // Print response
-    //puts("Server reply:");
-    //for (int i = 0; i < n_neurons; i++) {
-    //    printf("%f\n", filter_preds[i]);
-    //}
+    // Save output data
+    printf("Writing data to %s\n", OUT_FPATH);
+    save_data(OUT_FPATH, filter_preds[0], n_pts, n_neurons);
+    printf("Done.\n");
 
     // Free allocated memory
+    free(filter_preds[0]);
     free(filter_preds);
 	free(spks[0]);
     free(spks);

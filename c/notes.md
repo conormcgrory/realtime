@@ -9,12 +9,14 @@
 - [x] Write header exchange in order to allow number of neurons to differ
 - [x] Make code work with non-constant number of neurons
 - [x] Set up project with CMake and Conan
-- [ ] Get probe to read from HDF5 file
-- [ ] Switch dimensions of dataset in HDF5 file (make separate file)
+- [x] Get probe to read from HDF5 file
+- [x] Switch dimensions of dataset in HDF5 file (make separate file)
+- [x] Get probe mode to save filter predictions
+- [ ] Add timing
+- [ ] Move protocol code into its own file
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Write LMS filter
 - [ ] Get option parsing working so we can change host, port, and filter type
-- [ ] Add timing
 
 ## General
 
