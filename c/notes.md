@@ -8,8 +8,9 @@
 - [x] Change server response from int to float
 - [x] Write header exchange in order to allow number of neurons to differ
 - [x] Make code work with non-constant number of neurons
-- [ ] Set up project with CMake and Conan
+- [x] Set up project with CMake and Conan
 - [ ] Get probe to read from HDF5 file
+- [ ] Switch dimensions of dataset in HDF5 file (make separate file)
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Write LMS filter
 - [ ] Get option parsing working so we can change host, port, and filter type

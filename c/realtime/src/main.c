@@ -21,20 +21,83 @@ for further analysis.
 // TODO: Replace these with arguments
 #define HOST "127.0.0.1"
 #define PORT 8889
-#define IN_FPATH "../data/processed/s11_spks.h5"
+#define IN_FPATH "../../data/processed/test_spks_clang.h5"
 
 
 // Code processor sends to probe to acknowledge header
 const int ACK_CODE = 1;
 
 
+// Get dimensions (num. time points, num. neurons) from input data
+int get_data_dims(char* in_fpath, int* n_pts, int* n_neurons) {
+
+    // Default values
+    *n_pts = 0;
+    *n_neurons = 0;
+
+    // Open file
+    hid_t file = H5Fopen(in_fpath, H5F_ACC_RDONLY, H5P_DEFAULT);
+    hid_t dset = H5Dopen(file, "spks", H5P_DEFAULT);
+    hid_t dspace = H5Dget_space(dset);
+
+    // Get dimensions
+    hsize_t data_dims[2];
+    int ndims = H5Sget_simple_extent_dims(dspace, data_dims, NULL);
+    if (ndims != 2) {
+        fprintf(stderr, "Input data not two-dimensional\n");
+        return 1;
+    }
+
+    // Write return values
+    *n_pts = data_dims[0];
+    *n_neurons = data_dims[1];
+
+    // Close file
+    H5Sclose(dspace);
+    H5Dclose(dset);
+    H5Fclose(file);
+
+    return 0;
+}
+
+
+// Load spike counts from input file into program memory
+int load_data(char* in_fpath, int* data) {
+
+    // Open file
+    hid_t file = H5Fopen(IN_FPATH, H5F_ACC_RDONLY, H5P_DEFAULT);
+    hid_t dset = H5Dopen(file, "spks", H5P_DEFAULT);
+
+    int status = H5Dread(dset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    if (status != 0) {
+        fprintf(stderr, "Failed to read input data\n");
+        return 1;
+    }
+
+    // Close file
+    H5Dclose(dset);
+    H5Fclose(file);
+
+    return 0;
+}
+
+
 // Probe mode
 int probe_mode(char* host, int port) {
 
+    // Read number of data points and number of neurons from input file
+    int n_pts, n_neurons;
+    get_data_dims(IN_FPATH, &n_pts, &n_neurons);
 
-    // TODO: Replace this with HDF5 data
-    const int n_neurons = 6;
-    int spks[n_neurons] = {1, 2, 3, 4, 5, 6};
+    // Allocate array for spike counts
+    int** spks = (int **) malloc(n_pts * sizeof(int *));
+    spks[0] = (int *) malloc(n_pts * n_neurons * sizeof(int));
+    for (int i = 1; i < n_pts; i++) {
+        spks[i] = spks[0] + i * n_neurons;
+    }
+
+    // Load spike counts into memory
+    load_data(IN_FPATH, spks[0]);
 
 
 	// Create socket
@@ -71,8 +134,11 @@ int probe_mode(char* host, int port) {
         return 1;
     }
 
+
+    // TODO: Send all spike counts and save all filter predictions
     // Send spike counts
-    if (send(sock, &spks, n_neurons * sizeof(int), 0) < 0) {
+    
+    if (send(sock, spks[0], n_neurons * sizeof(int), 0) < 0) {
         perror("Send failed");
         return 1;
     }
@@ -88,14 +154,16 @@ int probe_mode(char* host, int port) {
     }
   
     // Print response
-    puts("Server reply:");
-    for (int i = 0; i < n_neurons; i++) {
-        printf("%f\n", filter_preds[i]);
-    }
+    //puts("Server reply:");
+    //for (int i = 0; i < n_neurons; i++) {
+    //    printf("%f\n", filter_preds[i]);
+    //}
 
     // Free allocated memory
     free(filter_preds);
- 
+	free(spks[0]);
+    free(spks);
+
     // Close socket
     close(sock);
 
@@ -197,11 +265,8 @@ void print_usage() {
 
 }
 
-int main(int argc, char **argv) {
 
-    // TODO: Finish adding this!
-    //hid_t file = H5Fopen (IN_FPATH, H5F_ACC_RDONLY, H5P_DEFAULT);
-    //hid_t dset = H5Dopen (file, "spks", H5P_DEFAULT);
+int main(int argc, char **argv) {
 
     // Parse mode ('probe' or 'processor') from argument list
     if (argc < 2) {
