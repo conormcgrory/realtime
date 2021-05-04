@@ -14,6 +14,7 @@ for further analysis.
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include "hdf5.h"
 
 
@@ -62,7 +63,7 @@ int get_data_dims(char* in_fpath, int* n_pts, int* n_neurons) {
 }
 
 
-// Load spike counts from input file into program memory
+// Load spike counts from HDF5 file
 int load_data(char* in_fpath, int* data) {
 
     // Open file
@@ -83,30 +84,52 @@ int load_data(char* in_fpath, int* data) {
 }
 
 
-int save_data(char* out_fpath, double* fpreds, int n_pts, int n_neurons) {
+// Write filter predictions and round-trip times to HDF5 file
+int save_data(char* out_fpath, double* fpreds, double* rt_times, int n_pts, int n_neurons) {
 
     // Create HDF5 file
     hid_t file = H5Fcreate(out_fpath, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
-    // Create dataspace
-    hsize_t dims[2]; 
-    dims[0] = n_pts;
-    dims[1] = n_neurons;
-    hid_t dspace_fpreds = H5Screate_simple (2, dims, NULL);
+    // Create dataspace for filter predictions
+    hsize_t dims_fp[2]; 
+    dims_fp[0] = n_pts;
+    dims_fp[1] = n_neurons;
+    hid_t dspace_fp = H5Screate_simple(2, dims_fp, NULL);
 
-    // Create dataset 
-    hid_t dset_fpreds = H5Dcreate(file, "filter_preds", H5T_IEEE_F64LE, dspace_fpreds, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // Create dataset for filter predictions
+    hid_t dset_fp = H5Dcreate(file, "filter_preds", H5T_IEEE_F64LE, dspace_fp, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     
-    // Write data
-    int status = H5Dwrite(dset_fpreds, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, fpreds);
-    if (status != 0) {
+    // Write filter predictions to file
+    int status_fp = H5Dwrite(dset_fp, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, fpreds);
+    if (status_fp != 0) {
         fprintf(stderr, "Failed to write output data\n");
         return 1;
     }
 
+    // Close dataspace and dataset
+    H5Sclose(dspace_fp);
+    H5Dclose(dset_fp);
+
+    // Create dataspace for round-trip times
+    hsize_t dims_rt[1]; 
+    dims_rt[0] = n_pts;
+    hid_t dspace_rt = H5Screate_simple(1, dims_rt, NULL);
+
+    // Create dataset for round-trip times
+    hid_t dset_rt = H5Dcreate(file, "rt_times_us", H5T_IEEE_F64LE, dspace_rt, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    
+    // Write round-trip times to file
+    int status_rt = H5Dwrite(dset_rt, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, rt_times);
+    if (status_rt != 0) {
+        fprintf(stderr, "Failed to write output data\n");
+        return 1;
+    }
+
+    // Close dataspace and dataset
+    H5Sclose(dspace_rt);
+    H5Dclose(dset_rt);
+
     // Close file
-    H5Dclose(dset_fpreds);
-    H5Sclose(dspace_fpreds);
     H5Fclose(file);
 
     return 0;
@@ -166,14 +189,21 @@ int probe_mode(char* host, int port) {
     }
 
     
-    // Allocate array for spike counts
+    // Allocate array for filter predictions
     double** filter_preds = (double **) malloc(n_pts * sizeof(double *));
     filter_preds[0] = (double *) malloc(n_pts * n_neurons * sizeof(double));
     for (int i = 1; i < n_pts; i++) {
         filter_preds[i] = filter_preds[0] + i * n_neurons;
     }
 
+    // Allocate array for times
+    double* rt_times_us = (double *) malloc(n_pts * sizeof(double));
+
     for (int k = 0; k < n_pts; k++) {
+
+        // Start clock
+        struct timeval st, et;
+        gettimeofday(&st, NULL);
 
         // Send spike counts
         if (send(sock, spks[k], n_neurons * sizeof(int), 0) < 0) {
@@ -186,14 +216,29 @@ int probe_mode(char* host, int port) {
             perror("recv failed");
             return 1;
         }
+
+        // Stop clock
+        gettimeofday(&et, NULL);
+
+        // Compute time (microseconds)
+        rt_times_us[k] = (et.tv_sec - st.tv_sec) * 1e6 + (et.tv_usec - st.tv_usec);
     }
+
+    // Compute mean latency
+    double acc, rt_mean;
+    for (int i = 0; i < n_pts; i++) {
+        acc = acc + rt_times_us[i];
+    }
+    rt_mean = acc / n_pts;
+    printf("Mean round-trip time: %f us\n", rt_mean);
   
     // Save output data
     printf("Writing data to %s\n", OUT_FPATH);
-    save_data(OUT_FPATH, filter_preds[0], n_pts, n_neurons);
+    save_data(OUT_FPATH, filter_preds[0], rt_times_us, n_pts, n_neurons);
     printf("Done.\n");
 
     // Free allocated memory
+    free(rt_times_us);
     free(filter_preds[0]);
     free(filter_preds);
 	free(spks[0]);

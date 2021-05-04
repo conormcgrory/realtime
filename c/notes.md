@@ -12,7 +12,7 @@
 - [x] Get probe to read from HDF5 file
 - [x] Switch dimensions of dataset in HDF5 file (make separate file)
 - [x] Get probe mode to save filter predictions
-- [ ] Add timing
+- [x] Add timing
 - [ ] Move protocol code into its own file
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Write LMS filter
