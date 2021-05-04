@@ -28,10 +28,6 @@ for further analysis.
 #define OUT_FPATH "../../data/results/c_echo.h5"
 
 
-// Code processor sends to probe to acknowledge header
-//const int ACK_CODE = 1;
-
-
 // Get dimensions (num. time points, num. neurons) from input data
 int get_data_dims(char* in_fpath, int* n_pts, int* n_neurons) {
 
@@ -138,22 +134,27 @@ int save_data(char* out_fpath, double* fpreds, double* rt_times, int n_pts, int 
 }
 
 
+double compute_mean(double* vals, int nvals) {
+
+    double acc;
+    for (int i = 0; i < nvals; i++) {
+        acc = acc + vals[i];
+    }
+
+    return acc / nvals;
+}
+
+
 // Probe mode
-int probe_mode(char* host, int port) {
+int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
 
     // Read number of data points and number of neurons from input file
     int n_pts, n_neurons;
-    get_data_dims(IN_FPATH, &n_pts, &n_neurons);
-
-    // Allocate array for spike counts
-    int** spks = (int **) malloc(n_pts * sizeof(int *));
-    spks[0] = (int *) malloc(n_pts * n_neurons * sizeof(int));
-    for (int i = 1; i < n_pts; i++) {
-        spks[i] = spks[0] + i * n_neurons;
-    }
+    get_data_dims(in_fpath, &n_pts, &n_neurons);
 
     // Load spike counts into memory
-    load_data(IN_FPATH, spks[0]);
+    int* spks = (int *) malloc(n_pts * n_neurons * sizeof(int));
+    load_data(in_fpath, spks);
 
     // Connect to processor
     struct ProbeConnection conn;
@@ -163,30 +164,30 @@ int probe_mode(char* host, int port) {
     }
     printf("Connected to processor.\n");
     
-    // Allocate array for filter predictions
-    double** filter_preds = (double **) malloc(n_pts * sizeof(double *));
-    filter_preds[0] = (double *) malloc(n_pts * n_neurons * sizeof(double));
-    for (int i = 1; i < n_pts; i++) {
-        filter_preds[i] = filter_preds[0] + i * n_neurons;
-    }
+    // Array for storing filter predictions
+    double* filter_preds = (double *) malloc(n_pts * n_neurons * sizeof(double));
 
-    // Allocate array for times
+    // Array for storing round-trip times (microseconds)
     double* rt_times_us = (double *) malloc(n_pts * sizeof(double));
 
     for (int k = 0; k < n_pts; k++) {
+
+        // Pointers to spikes and filter predictions for this time step
+        int* spks_k = spks + (k * n_neurons);
+        double* filter_preds_k = filter_preds + (k * n_neurons);
 
         // Start clock
         struct timeval st, et;
         gettimeofday(&st, NULL);
 
-        // Send spike counts
-        if (probe_send(&conn, spks[k]) != 0) {
+        // Send spike counts to processor
+        if (probe_send(&conn, spks_k) != 0) {
             fprintf(stderr, "probe_send() failed\n");
             return 1;
         }
   
-        // Receive predictions from the server
-        if (probe_recv(&conn, filter_preds[k]) != 0) {
+        // Receive filter predictions from processor
+        if (probe_recv(&conn, filter_preds_k) != 0) {
             fprintf(stderr, "probe_recv() failed\n");
             return 1;
         }
@@ -199,27 +200,20 @@ int probe_mode(char* host, int port) {
     }
 
     // Compute mean latency
-    double acc, rt_mean;
-    for (int i = 0; i < n_pts; i++) {
-        acc = acc + rt_times_us[i];
-    }
-    rt_mean = acc / n_pts;
+    double rt_mean = compute_mean(rt_times_us, n_pts);
     printf("Mean round-trip time: %f us\n", rt_mean);
   
     // Save output data
     printf("Writing data to %s\n", OUT_FPATH);
-    save_data(OUT_FPATH, filter_preds[0], rt_times_us, n_pts, n_neurons);
+    save_data(OUT_FPATH, filter_preds, rt_times_us, n_pts, n_neurons);
     printf("Done.\n");
 
     // Free allocated memory
     free(rt_times_us);
-    free(filter_preds[0]);
     free(filter_preds);
-	free(spks[0]);
     free(spks);
 
-    // Close socket
-    //close(sock);
+    // Close connection
     probe_disconnect(&conn);
 
     return 0;
@@ -295,7 +289,7 @@ int main(int argc, char **argv) {
     } 
     else {
         if (strcmp(argv[1], "probe") == 0) {
-            return probe_mode(HOST, PORT);
+            return probe_mode(HOST, PORT, IN_FPATH, OUT_FPATH);
         }
         else if (strcmp(argv[1], "processor") == 0) {
             return processor_mode(HOST, PORT);

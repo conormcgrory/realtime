@@ -14,7 +14,7 @@
 - [x] Get probe mode to save filter predictions
 - [x] Add timing
 - [x] Move protocol code into its own file
-- [ ] Use single pointers for arrays
+- [x] Use single pointers for arrays
 - [ ] Make printouts similar to those used by Python implementation
 - [ ] Write LMS filter
 - [ ] Make notebook to analyze latency data
