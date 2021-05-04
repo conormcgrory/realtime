@@ -14,7 +14,7 @@
 const int ACK_CODE = 1;
 
 
-
+// Create TCP connection with processor
 int probe_connect(char* host, int port, int n_neurons, struct ProbeConnection* conn) {
 
 	// Create socket
@@ -61,14 +61,14 @@ int probe_connect(char* host, int port, int n_neurons, struct ProbeConnection* c
     return 0;
 }
 
-
+// Close TCP connection with processor
 int probe_disconnect(struct ProbeConnection* conn) {
 
     close(conn->sock_id);
     return 0;
 }
 
-
+// Send spikes across socket
 int probe_send(struct ProbeConnection* conn, int* spks) {
     
     if (send(conn->sock_id, spks, conn->n_neurons * sizeof(int), 0) < 0) {
@@ -79,7 +79,7 @@ int probe_send(struct ProbeConnection* conn, int* spks) {
     return 0;
 }
 
-
+// Receive filter predictions from socket
 int probe_recv(struct ProbeConnection* conn, double* fpreds) {
     
     if (recv(conn->sock_id, fpreds, conn->n_neurons * sizeof(double), 0) < 0) {
@@ -91,12 +91,19 @@ int probe_recv(struct ProbeConnection* conn, double* fpreds) {
 }
 
 
+/* Functions called by processor
+ *
+ * These functions are all called by the machine running in 'processor mode',
+ * using a ProcessorConnection object.
+ */
+
+// Connect to probe
 int processor_connect(char* host, int port, struct ProcessorConnection* conn) {
 
     // Create socket
     int sock_desc = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_desc < 0) {
-        puts("Could not create socket");
+        fprintf(stderr, "Could not create socket\n");
         return 1;
     }
   
@@ -106,13 +113,12 @@ int processor_connect(char* host, int port, struct ProcessorConnection* conn) {
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(port);
     if (bind(sock_desc, (struct sockaddr*)&server, sizeof(server)) < 0) {
-        perror("bind failedx");
+        perror("bind failed");
         return 1;
     }
   
     // Listen to the socket
     listen(sock_desc, 3);
-    puts("Waiting for incoming connections...");
   
     // Accept connection from incoming client
     struct sockaddr_in client; 
@@ -122,7 +128,6 @@ int processor_connect(char* host, int port, struct ProcessorConnection* conn) {
         perror("accept failed");
         return 1;
     }
-    puts("Connection accepted");
 
     // Receive header
     int n_neurons;
@@ -130,14 +135,12 @@ int processor_connect(char* host, int port, struct ProcessorConnection* conn) {
         perror("recv failed");
         return 1;
     }
-    puts("header recieved");
 
     // Send ACK
     if (send(sock_client, &ACK_CODE, sizeof(int), 0) < 0) {
         perror("Send failed");
         return 1;
     }
-    puts("ack sent");
 
     // Populate struct
     conn->host = host;
@@ -148,7 +151,6 @@ int processor_connect(char* host, int port, struct ProcessorConnection* conn) {
     conn->is_connected = 1;
 
     return 0;
-
 }
 
 int processor_disconnect(struct ProcessorConnection* conn) {
@@ -175,7 +177,6 @@ int processor_recv(struct ProcessorConnection* conn, int* spks) {
     
     int read_size = recv(conn->sock_client_id, spks, conn->n_neurons * sizeof(int), 0);
     if (read_size == 0) {
-        puts("Client disconnected");
         conn->is_connected = 0;
     }
     else if (read_size == -1) {

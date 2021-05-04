@@ -134,6 +134,7 @@ int save_data(char* out_fpath, double* fpreds, double* rt_times, int n_pts, int 
 }
 
 
+// Compute the mean of a vector of values
 double compute_mean(double* vals, int nvals) {
 
     double acc;
@@ -148,6 +149,8 @@ double compute_mean(double* vals, int nvals) {
 // Probe mode
 int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
 
+    printf("Loading data from '%s'...\n", in_fpath);
+
     // Read number of data points and number of neurons from input file
     int n_pts, n_neurons;
     get_data_dims(in_fpath, &n_pts, &n_neurons);
@@ -156,13 +159,16 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
     int* spks = (int *) malloc(n_pts * n_neurons * sizeof(int));
     load_data(in_fpath, spks);
 
+    printf("Done.\n");
+
     // Connect to processor
+    printf("Connecting to processor at %s:%d...\n", host, port);
     struct ProbeConnection conn;
     if (probe_connect(host, port, n_neurons, &conn) != 0) {
         fprintf(stderr, "Probe connection failed\n");
         return 1;
     }
-    printf("Connected to processor.\n");
+    printf("Done.\n");
     
     // Array for storing filter predictions
     double* filter_preds = (double *) malloc(n_pts * n_neurons * sizeof(double));
@@ -170,6 +176,7 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
     // Array for storing round-trip times (microseconds)
     double* rt_times_us = (double *) malloc(n_pts * sizeof(double));
 
+    printf("Sending signal...\n");
     for (int k = 0; k < n_pts; k++) {
 
         // Pointers to spikes and filter predictions for this time step
@@ -198,14 +205,15 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
         // Compute time (microseconds)
         rt_times_us[k] = (et.tv_sec - st.tv_sec) * 1e6 + (et.tv_usec - st.tv_usec);
     }
+    printf("Done.\n");
 
     // Compute mean latency
     double rt_mean = compute_mean(rt_times_us, n_pts);
-    printf("Mean round-trip time: %f us\n", rt_mean);
+    printf("Mean round-trip latency: %f us\n", rt_mean);
   
     // Save output data
-    printf("Writing data to %s\n", OUT_FPATH);
-    save_data(OUT_FPATH, filter_preds, rt_times_us, n_pts, n_neurons);
+    printf("Writing data to '%s'...\n", out_fpath);
+    save_data(out_fpath, filter_preds, rt_times_us, n_pts, n_neurons);
     printf("Done.\n");
 
     // Free allocated memory
@@ -223,33 +231,34 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
 // Processor mode
 int processor_mode(char* host, int port) {
 
-    printf("Connecting to host %s and port %d\n", host, port);
-
+    // Connect to probe
+    printf("Connecting to probe at %s:%d...\n", host, port);
     struct ProcessorConnection conn;
     if (processor_connect(host, port, &conn) != 0) {
         fprintf(stderr, "Processor connection failed\n");
         return 1;
     }
-    printf("Connected to probe.\n");
+    printf("Done.\n");
 
-    // Array for storing spikes 
+    // Arrays for storing spikes as int and double
     int* spks_int = (int*) malloc(conn.n_neurons * sizeof(int));
-
-    // Array for storing spikes converted to doubles
     double* spks_double = (double*) malloc(conn.n_neurons * sizeof(double));
 
+    printf("Filtering signal...\n");
     while(1) {
 
+        // Receive spikes (int) from probe
         if (processor_recv(&conn, spks_int) != 0) {
             fprintf(stderr, "processor_recv() failed\n");
             return 1;
         }
 
+        // If probe has disconnected, break out of loop and return
         if (!conn.is_connected) {
             break;
         }
 
-        // Convert spikes to double
+        // Convert spikes to doubles
         for (int i = 0; i < conn.n_neurons; i++) {
             spks_double[i] = (double) spks_int[i];
         }
@@ -260,6 +269,7 @@ int processor_mode(char* host, int port) {
             return 1;
         }
     }
+    printf("Done.\n");
 
     // Free memory
     free(spks_int);

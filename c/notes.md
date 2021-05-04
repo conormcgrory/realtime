@@ -15,7 +15,7 @@
 - [x] Add timing
 - [x] Move protocol code into its own file
 - [x] Use single pointers for arrays
-- [ ] Make printouts similar to those used by Python implementation
+- [x] Make printouts similar to those used by Python implementation
 - [ ] Write LMS filter
 - [ ] Make notebook to analyze latency data
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
