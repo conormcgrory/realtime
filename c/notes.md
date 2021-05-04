@@ -13,9 +13,12 @@
 - [x] Switch dimensions of dataset in HDF5 file (make separate file)
 - [x] Get probe mode to save filter predictions
 - [x] Add timing
-- [ ] Move protocol code into its own file
-- [ ] Write echo filter (figure out how to do object-oriented stuff in C)
+- [x] Move protocol code into its own file
+- [ ] Use single pointers for arrays
+- [ ] Make printouts similar to those used by Python implementation
 - [ ] Write LMS filter
+- [ ] Make notebook to analyze latency data
+- [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Get option parsing working so we can change host, port, and filter type
 
 ## General

@@ -15,8 +15,10 @@ for further analysis.
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+
 #include "hdf5.h"
 
+#include "protocol.h"
 
 
 // TODO: Replace these with arguments
@@ -27,7 +29,7 @@ for further analysis.
 
 
 // Code processor sends to probe to acknowledge header
-const int ACK_CODE = 1;
+//const int ACK_CODE = 1;
 
 
 // Get dimensions (num. time points, num. neurons) from input data
@@ -153,41 +155,13 @@ int probe_mode(char* host, int port) {
     // Load spike counts into memory
     load_data(IN_FPATH, spks[0]);
 
-
-	// Create socket
-  	int sock = socket(AF_INET, SOCK_STREAM, 0);
-  	if (sock < 0) {
-    	perror("Cannot create socket");
-    	return 1;
-  	}
-
-    // Connect to server
-  	struct sockaddr_in server;
-  	server.sin_family = AF_INET;
-  	server.sin_addr.s_addr = inet_addr(host);
-  	server.sin_port = htons(port);
-  	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-    	perror("Cannot connect to server");
-    	return 1;
-  	}
-
-    // Send header
-    if (send(sock, &n_neurons, sizeof(int), 0) < 0) {
-        perror("Send failed");
+    // Connect to processor
+    struct ProbeConnection conn;
+    if (probe_connect(host, port, n_neurons, &conn) != 0) {
+        fprintf(stderr, "Probe connection failed\n");
         return 1;
     }
-
-    // Receive ACK
-    int hdr_resp;
-    if (recv(sock, &hdr_resp, sizeof(int), 0) < 0) {
-        perror("recv failed");
-        return 1;
-    }
-    if (hdr_resp != ACK_CODE) {
-        perror("Response to header not ACK");
-        return 1;
-    }
-
+    printf("Connected to processor.\n");
     
     // Allocate array for filter predictions
     double** filter_preds = (double **) malloc(n_pts * sizeof(double *));
@@ -206,14 +180,14 @@ int probe_mode(char* host, int port) {
         gettimeofday(&st, NULL);
 
         // Send spike counts
-        if (send(sock, spks[k], n_neurons * sizeof(int), 0) < 0) {
-            perror("send failed");
+        if (probe_send(&conn, spks[k]) != 0) {
+            fprintf(stderr, "probe_send() failed\n");
             return 1;
         }
   
         // Receive predictions from the server
-        if (recv(sock, filter_preds[k], n_neurons * sizeof(double), 0) < 0) {
-            perror("recv failed");
+        if (probe_recv(&conn, filter_preds[k]) != 0) {
+            fprintf(stderr, "probe_recv() failed\n");
             return 1;
         }
 
@@ -245,7 +219,8 @@ int probe_mode(char* host, int port) {
     free(spks);
 
     // Close socket
-    close(sock);
+    //close(sock);
+    probe_disconnect(&conn);
 
     return 0;
 }
@@ -254,85 +229,50 @@ int probe_mode(char* host, int port) {
 // Processor mode
 int processor_mode(char* host, int port) {
 
-    // Create socket
-    int sock_desc = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_desc < 0) {
-        puts("Could not create socket");
-        return 1;
-    }
-  
-    // Bind socket
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons(port);
-    if (bind(sock_desc, (struct sockaddr*)&server, sizeof(server)) < 0) {
-        perror("bind failed");
-        return 1;
-    }
-  
-    // Listen to the socket
-    listen(sock_desc, 3);
-    puts("Waiting for incoming connections...");
-  
-    // Accept connection from incoming client
-    struct sockaddr_in client; 
-    int c = sizeof(struct sockaddr_in);
-    int sock_client = accept(sock_desc, (struct sockaddr*)&client, (socklen_t*)&c);
-    if (sock_client < 0) {
-        perror("accept failed");
-        return 1;
-    }
-    puts("Connection accepted");
+    printf("Connecting to host %s and port %d\n", host, port);
 
-    // Receive header
-    int n_neurons;
-    if (recv(sock_client, &n_neurons, sizeof(int), 0) < 0) {
-        perror("recv failed");
+    struct ProcessorConnection conn;
+    if (processor_connect(host, port, &conn) != 0) {
+        fprintf(stderr, "Processor connection failed\n");
         return 1;
     }
-
-    // Send ACK
-    if (send(sock_client, &ACK_CODE, sizeof(int), 0) < 0) {
-        perror("Send failed");
-        return 1;
-    }
+    printf("Connected to probe.\n");
 
     // Array for storing spikes 
-    int* spks_int = (int*) malloc(n_neurons * sizeof(int));
+    int* spks_int = (int*) malloc(conn.n_neurons * sizeof(int));
 
     // Array for storing spikes converted to doubles
-    double* spks_double = (double*) malloc(n_neurons * sizeof(double));
+    double* spks_double = (double*) malloc(conn.n_neurons * sizeof(double));
 
     while(1) {
 
-        // Recieve spikes from probe
-        int read_size = recv(sock_client, spks_int, n_neurons * sizeof(int), 0);
-        if (read_size == 0) {
-            puts("Client disconnected");
-            break;
-        }
-        else if (read_size == -1) {
-            perror("recv failed");
+        if (processor_recv(&conn, spks_int) != 0) {
+            fprintf(stderr, "processor_recv() failed\n");
             return 1;
         }
 
+        if (!conn.is_connected) {
+            break;
+        }
+
         // Convert spikes to double
-        for (int i = 0; i < n_neurons; i++) {
+        for (int i = 0; i < conn.n_neurons; i++) {
             spks_double[i] = (double) spks_int[i];
         }
 
         // Echo message back to probe
-        write(sock_client, spks_double, n_neurons * sizeof(double));
+        if (processor_send(&conn, spks_double) != 0) {
+            fprintf(stderr, "processor_send() failed\n");
+            return 1;
+        }
     }
 
     // Free memory
     free(spks_int);
     free(spks_double);
 
-    // Close sockets
-    close(sock_desc);
-    close(sock_client);
+    // Close connection
+    processor_disconnect(&conn);
     
     return 0;
 } 
