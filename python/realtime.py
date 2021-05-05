@@ -180,7 +180,7 @@ class FilterAutoLMS:
         Returns:
             (dim*1 array): Predicted next signal value
         """
-
+ 
         # Update filter using history as input and current value as output
         self.flt_lms.adapt(x, self.x_hist)
 
@@ -189,6 +189,73 @@ class FilterAutoLMS:
 
         # Use new history to predict next value
         return self.flt_lms.predict(self.x_hist)
+
+
+class FilterFastAutoLMS:
+    """This class is a faster version of FilterAutoLMS.
+
+    It maintains a history of signal values of size `order`, and uses this
+    history as the input for the LMS filter, which is trained to predict the
+    next value of the time series.
+    
+    Args:
+        dim (int): Dimension of signal
+        order (int): Order of filter
+        mu (float, optional): Learning rate. Also known as step size. If it is
+            too slow, the filter may have bad performance. If it is too high,
+            the filter will be unstable. The default value can be unstable for
+            ill-conditioned input data.
+        wts_init (str, optional): Method for initializing weights. Options are:
+            - 'random': Create random weights
+            - 'zeros': Create zero value weights
+    """
+
+    def __init__(self, dim, order, mu=0.01, wts_init='random'):
+        
+        self.dim = dim
+        self.order = order
+        self.mu =  mu
+        
+        self.x_hist = np.zeros((dim * order, 1))
+        self.x_pred = np.zeros((dim, 1))
+        if wts_init == 'random':
+            self.wts = np.random.normal(0, 0.5, (dim, order * dim))
+        elif wts_init == 'zeros':
+            self.wts = np.zeros((dim, order*dim))
+        else:
+            raise ValueError(f'"{wts_init}" not valid option for weight init')
+
+        self._delta_wts = np.zeros(self.wts.shape)
+
+    def predict_next(self, x):
+        """Update filter with new signal value and predict next value.
+
+        The invariant that is observed with this filter object is:
+            x_pred = wts @ x_hist
+        At the beginning of this method, the difference between the new value
+        x and the old prediction is used to update the weights. Then, x is 
+        added to the history, which is multiplied by the weights to yield a new
+        prediction. This restores the invariant.
+
+        Args:
+            x (dim*1 array): New signal value
+
+        Returns:
+            (dim*1 array): Predicted next signal value
+        """
+
+        # Update weights
+        mu_err = self.mu * (x - self.x_pred)
+        np.multiply(mu_err, self.x_hist.T, out=self._delta_wts)
+        np.add(self.wts, self._delta_wts, out=self.wts)
+
+        # Update history
+        self.x_hist = np.concatenate([x, self.x_hist[0:-x.shape[0], :]], axis=0)
+
+        # Update prediction
+        self.x_pred = self.wts @ self.x_hist
+
+        return self.x_pred
 
 
 class FilterAutoEcho:
@@ -298,7 +365,7 @@ def processor_mode(host, port, filter_type):
     if filter_type == 'echo':
         flt = FilterAutoEcho()
     elif filter_type == 'lms':
-        flt = FilterAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
+        flt = FilterFastAutoLMS(n_neurons, FILTER_ORDER, mu=FILTER_MU, wts_init='zeros')
     else:
         raise NotImplementedError(f"No such filter: '{filter_type}'")
 
