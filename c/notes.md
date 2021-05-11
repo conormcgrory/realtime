@@ -16,7 +16,8 @@
 - [x] Move protocol code into its own file
 - [x] Use single pointers for arrays
 - [x] Make printouts similar to those used by Python implementation
-- [ ] Write LMS filter
+- [x] Write LMS filter
+- [ ] Speed up LMS filter
 - [ ] Make notebook to analyze latency data
 - [ ] Write echo filter (figure out how to do object-oriented stuff in C)
 - [ ] Get option parsing working so we can change host, port, and filter type
@@ -32,3 +33,4 @@
 - Neither of these concerns should matter at the prototyping stage, however
 - Probably should consider building C++ prototype; C++ has better support for math
 - Looked into possibility of using variable length arrays instead of heap allocation; doesn't seem like common practice
+- In LMS filter, biggest bottlenecks are weight update and prediction update (each step takes about 7-8ms)

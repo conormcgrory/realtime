@@ -19,13 +19,23 @@ for further analysis.
 #include "hdf5.h"
 
 #include "protocol.h"
+#include "filter_auto_lms.h"
 
 
 // TODO: Replace these with arguments
 #define HOST "127.0.0.1"
 #define PORT 8889
 #define IN_FPATH "../../data/processed/test_spks_clang.h5"
-#define OUT_FPATH "../../data/results/c_echo.h5"
+#define OUT_FPATH "../../data/results/c_lms.h5"
+
+// Order of filter
+#define FILTER_ORDER 5
+
+// Filter learning rate
+#define FILTER_MU 0.01
+
+// Number of points to send for test
+#define N_PTS_SEND 1000
 
 
 // Get dimensions (num. time points, num. neurons) from input data
@@ -171,13 +181,13 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
     printf("Done.\n");
     
     // Array for storing filter predictions
-    double* filter_preds = (double *) malloc(n_pts * n_neurons * sizeof(double));
+    double* filter_preds = (double *) malloc(N_PTS_SEND * n_neurons * sizeof(double));
 
     // Array for storing round-trip times (microseconds)
-    double* rt_times_us = (double *) malloc(n_pts * sizeof(double));
+    double* rt_times_us = (double *) malloc(N_PTS_SEND * sizeof(double));
 
     printf("Sending signal...\n");
-    for (int k = 0; k < n_pts; k++) {
+    for (int k = 0; k < N_PTS_SEND; k++) {
 
         // Pointers to spikes and filter predictions for this time step
         int* spks_k = spks + (k * n_neurons);
@@ -208,12 +218,12 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
     printf("Done.\n");
 
     // Compute mean latency
-    double rt_mean = compute_mean(rt_times_us, n_pts);
+    double rt_mean = compute_mean(rt_times_us, N_PTS_SEND);
     printf("Mean round-trip latency: %f us\n", rt_mean);
   
     // Save output data
     printf("Writing data to '%s'...\n", out_fpath);
-    save_data(out_fpath, filter_preds, rt_times_us, n_pts, n_neurons);
+    save_data(out_fpath, filter_preds, rt_times_us, N_PTS_SEND, n_neurons);
     printf("Done.\n");
 
     // Free allocated memory
@@ -240,6 +250,10 @@ int processor_mode(char* host, int port) {
     }
     printf("Done.\n");
 
+    // Create filter object
+    struct FilterAutoLMS flt;
+    FilterAutoLMS_new(&flt, conn.n_neurons, FILTER_ORDER, FILTER_MU);
+
     // Arrays for storing spikes as int and double
     int* spks_int = (int*) malloc(conn.n_neurons * sizeof(int));
     double* spks_double = (double*) malloc(conn.n_neurons * sizeof(double));
@@ -263,8 +277,11 @@ int processor_mode(char* host, int port) {
             spks_double[i] = (double) spks_int[i];
         }
 
-        // Echo message back to probe
-        if (processor_send(&conn, spks_double) != 0) {
+        // Update filter
+        FilterAutoLMS_predict_next(&flt, spks_double);
+
+        // Send filter predictions back to probe
+        if (processor_send(&conn, flt.x_pred) != 0) {
             fprintf(stderr, "processor_send() failed\n");
             return 1;
         }
@@ -274,6 +291,9 @@ int processor_mode(char* host, int port) {
     // Free memory
     free(spks_int);
     free(spks_double);
+
+    // Delete filter
+    FilterAutoLMS_delete(&flt);
 
     // Close connection
     processor_disconnect(&conn);
