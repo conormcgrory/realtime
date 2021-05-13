@@ -35,7 +35,7 @@ for further analysis.
 #define FILTER_MU 0.01
 
 // Number of points to send for test
-#define N_PTS_SEND 1000
+#define N_PTS_SEND 10000
 
 
 // Get dimensions (num. time points, num. neurons) from input data

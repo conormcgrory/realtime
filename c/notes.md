@@ -17,9 +17,9 @@
 - [x] Use single pointers for arrays
 - [x] Make printouts similar to those used by Python implementation
 - [x] Write LMS filter
-- [ ] Speed up LMS filter
+- [x] Speed up LMS filter
 - [ ] Make notebook to analyze latency data
-- [ ] Write echo filter (figure out how to do object-oriented stuff in C)
+- [ ] Write echo filter and add option for switching between filters
 - [ ] Get option parsing working so we can change host, port, and filter type
 
 ## General
