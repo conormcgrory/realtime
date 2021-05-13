@@ -1,10 +1,11 @@
-/* Header file for autoregressive least-mean-squares filter */
-
-#ifndef _FILTER_AUTO_LMS_H
-#define _FILTER_AUTO_LMS_H
+/* Header file for filters */
 
 
-/* Struct containing LMS filter state */
+#ifndef _FILTERS_H
+#define _FILTERS_H
+
+
+/* Autoregressive least-mean-squares filter */
 struct FilterAutoLMS {
 
     // Dimension of signal
@@ -40,5 +41,26 @@ void FilterAutoLMS_delete(struct FilterAutoLMS* flt);
 
 // Update filter with new signal value and predict next value
 void FilterAutoLMS_predict_next(struct FilterAutoLMS* flt, double* x);
+
+
+/* 'Echo' filter */
+struct FilterAutoEcho {
+
+    // Dimension of signal
+    int dim;
+
+    // Filter prediction
+    double* x_pred;
+};
+
+// Constructor for filter object
+void FilterAutoEcho_new(struct FilterAutoEcho* flt, int dim);
+
+// Destructor for filter object
+void FilterAutoEcho_delete(struct FilterAutoEcho* flt);
+
+// Update filter with new signal value and predict next value
+void FilterAutoEcho_predict_next(struct FilterAutoEcho* flt, double* x);
+
 
 #endif

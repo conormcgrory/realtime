@@ -1,10 +1,10 @@
-/* Autoregressive least-mean-squares filter */
+/* Filters */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <cblas.h>
 
-#include "filter_auto_lms.h"
+#include "filters.h"
 
 
 // Constructor for FilterAutoLMS object
@@ -83,4 +83,36 @@ void FilterAutoLMS_predict_next(struct FilterAutoLMS* flt, double* x) {
         CblasRowMajor, CblasNoTrans, flt->dim, flt->hist_size, 1.0, 
         flt->wts, flt->hist_size, flt->x_hist, 1, 0.0, flt->x_pred, 1
     );
+}
+
+
+// Constructor for FilterAutoEcho object
+void FilterAutoEcho_new(struct FilterAutoEcho* flt, int dim) {
+
+    // Allocate array for prediction and set to zero
+    flt->x_pred = (double *) malloc(dim * sizeof(double));
+    for (int i = 0; i < dim; i++) {
+        flt->x_pred[i] = 0.0;
+    }
+
+    // Populate fields
+    flt->dim = dim;
+}
+
+
+// Destructor for FilterAutoEcho object
+void FilterAutoEcho_delete(struct FilterAutoEcho* flt) {
+
+    // Free allocated memory
+    free(flt->x_pred);
+}
+
+
+// Update filter with new signal value and predict next value
+void FilterAutoEcho_predict_next(struct FilterAutoEcho* flt, double* x) {
+
+    // Copy input to prediction
+    for (int i = 0; i < flt->dim; i++) {
+        flt->x_pred[i] = x[i];
+    }
 }

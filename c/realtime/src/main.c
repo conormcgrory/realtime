@@ -19,7 +19,7 @@ for further analysis.
 #include "hdf5.h"
 
 #include "protocol.h"
-#include "filter_auto_lms.h"
+#include "filters.h"
 
 
 // TODO: Replace these with arguments
@@ -27,6 +27,7 @@ for further analysis.
 #define PORT 8889
 #define IN_FPATH "../../data/processed/test_spks_clang.h5"
 #define OUT_FPATH "../../data/results/c_lms.h5"
+#define FILTER_TYPE "lms"
 
 // Order of filter
 #define FILTER_ORDER 5
@@ -239,7 +240,7 @@ int probe_mode(char* host, int port, char* in_fpath, char* out_fpath) {
 
 
 // Processor mode
-int processor_mode(char* host, int port) {
+int processor_mode(char* host, int port, int use_lms) {
 
     // Connect to probe
     printf("Connecting to probe at %s:%d...\n", host, port);
@@ -250,9 +251,11 @@ int processor_mode(char* host, int port) {
     }
     printf("Done.\n");
 
-    // Create filter object
-    struct FilterAutoLMS flt;
-    FilterAutoLMS_new(&flt, conn.n_neurons, FILTER_ORDER, FILTER_MU);
+    // Create filter objects for LMS and echo filters (we only use one)
+    struct FilterAutoLMS flt_lms;
+    FilterAutoLMS_new(&flt_lms, conn.n_neurons, FILTER_ORDER, FILTER_MU);
+    struct FilterAutoEcho flt_echo;
+    FilterAutoEcho_new(&flt_echo, conn.n_neurons);
 
     // Arrays for storing spikes as int and double
     int* spks_int = (int*) malloc(conn.n_neurons * sizeof(int));
@@ -277,13 +280,20 @@ int processor_mode(char* host, int port) {
             spks_double[i] = (double) spks_int[i];
         }
 
-        // Update filter
-        FilterAutoLMS_predict_next(&flt, spks_double);
-
-        // Send filter predictions back to probe
-        if (processor_send(&conn, flt.x_pred) != 0) {
-            fprintf(stderr, "processor_send() failed\n");
-            return 1;
+        // Update filter and send predictions back to probe
+        if (use_lms) {
+            FilterAutoLMS_predict_next(&flt_lms, spks_double);
+            if (processor_send(&conn, flt_lms.x_pred) != 0) {
+                fprintf(stderr, "processor_send() failed\n");
+                return 1;
+            }
+        }
+        else {
+            FilterAutoEcho_predict_next(&flt_echo, spks_double);
+            if (processor_send(&conn, flt_echo.x_pred) != 0) {
+                fprintf(stderr, "processor_send() failed\n");
+                return 1;
+            }
         }
     }
     printf("Done.\n");
@@ -293,7 +303,8 @@ int processor_mode(char* host, int port) {
     free(spks_double);
 
     // Delete filter
-    FilterAutoLMS_delete(&flt);
+    FilterAutoEcho_delete(&flt_echo);
+    FilterAutoLMS_delete(&flt_lms);
 
     // Close connection
     processor_disconnect(&conn);
@@ -318,12 +329,29 @@ int main(int argc, char **argv) {
         return 0;
     } 
     else {
+
+        // Probe mode
         if (strcmp(argv[1], "probe") == 0) {
             return probe_mode(HOST, PORT, IN_FPATH, OUT_FPATH);
         }
+
+        // Processor mode
         else if (strcmp(argv[1], "processor") == 0) {
-            return processor_mode(HOST, PORT);
+
+            // Parse filter type
+            if (strcmp(FILTER_TYPE, "lms") == 0) {
+                return processor_mode(HOST, PORT, 1);
+            }
+            else if (strcmp(FILTER_TYPE, "echo") == 0) {
+                return processor_mode(HOST, PORT, 0);
+            }
+            else {
+                fprintf(stderr, "filter type '%s' not supported\n", FILTER_TYPE);
+                return 1;
+            }
         }
+
+        // Invalid mode
         else {
             print_usage();
             return 0;

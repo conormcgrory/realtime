@@ -18,8 +18,8 @@
 - [x] Make printouts similar to those used by Python implementation
 - [x] Write LMS filter
 - [x] Speed up LMS filter
+- [x] Write echo filter and add option for switching between filters
 - [ ] Make notebook to analyze latency data
-- [ ] Write echo filter and add option for switching between filters
 - [ ] Get option parsing working so we can change host, port, and filter type
 
 ## General
