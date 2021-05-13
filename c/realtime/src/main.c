@@ -25,7 +25,7 @@ for further analysis.
 // TODO: Replace these with arguments
 #define HOST "127.0.0.1"
 #define PORT 8889
-#define IN_FPATH "../../data/processed/test_spks_clang.h5"
+#define IN_FPATH "../../data/processed/test_spks_c.h5"
 #define OUT_FPATH "../../data/results/c_lms.h5"
 #define FILTER_TYPE "lms"
 
