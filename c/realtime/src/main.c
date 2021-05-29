@@ -10,6 +10,7 @@ for further analysis.
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h> 
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -22,12 +23,8 @@ for further analysis.
 #include "filters.h"
 
 
-// TODO: Replace these with arguments
-#define HOST "127.0.0.1"
-#define PORT 8889
-#define IN_FPATH "../../data/processed/test_spks_c.h5"
-#define OUT_FPATH "../../data/results/c_lms.h5"
-#define FILTER_TYPE "lms"
+// Size of buffer for args (host, port, input and output filenames)
+#define ARG_BUF_SIZE 256
 
 // Order of filter
 #define FILTER_ORDER 5
@@ -332,23 +329,85 @@ int main(int argc, char **argv) {
 
         // Probe mode
         if (strcmp(argv[1], "probe") == 0) {
-            return probe_mode(HOST, PORT, IN_FPATH, OUT_FPATH);
+
+            // Variables for storing argument values
+            int c;
+            int port;
+            char host[ARG_BUF_SIZE];
+            char in_fpath[ARG_BUF_SIZE];
+            char out_fpath[ARG_BUF_SIZE];
+
+            // Start parsing after subcommand
+            optind = 2;
+
+            // Use getopt to parse arguments
+			while((c = getopt(argc, argv, "a:p:i:o:")) != -1) {
+    			switch (c) {
+      				case 'a':
+						strcpy(host, optarg);
+        				break;
+					case 'p':
+                        port = atoi(optarg);
+                        break;
+                    case 'i':
+                        strcpy(in_fpath, optarg);
+                        break;
+                    case 'o':
+                        strcpy(out_fpath, optarg);
+                        break;
+      				case '?':
+						return 1;
+      				default:
+						return 1;
+				}
+      		}
+
+            return probe_mode(host, port, in_fpath, out_fpath);
         }
 
         // Processor mode
         else if (strcmp(argv[1], "processor") == 0) {
 
-            // Parse filter type
-            if (strcmp(FILTER_TYPE, "lms") == 0) {
-                return processor_mode(HOST, PORT, 1);
-            }
-            else if (strcmp(FILTER_TYPE, "echo") == 0) {
-                return processor_mode(HOST, PORT, 0);
-            }
-            else {
-                fprintf(stderr, "filter type '%s' not supported\n", FILTER_TYPE);
-                return 1;
-            }
+            // Variables for storing argument values
+            int c;
+            int port;
+            int use_lms;
+            char host[ARG_BUF_SIZE];
+            char out_fpath[ARG_BUF_SIZE];
+            char filter_type[ARG_BUF_SIZE];
+
+            // Start parsing after subcommand
+            optind = 2;
+
+            // Use getopt to parse arguments
+			while((c = getopt(argc, argv, "a:p:f:")) != -1) {
+    			switch (c) {
+      				case 'a':
+						strcpy(host, optarg);
+        				break;
+					case 'p':
+                        port = atoi(optarg);
+                        break;
+                    case 'f':
+                        if (strcmp(optarg, "lms") == 0) {
+                            use_lms = 1;
+                        }
+                        else if (strcmp(optarg, "echo") == 0) {
+                            use_lms = 0;
+                        }
+                        else {
+                            fprintf(stderr, "filter type '%s' not supported\n", optarg);
+                            return 1;
+                        }
+                        break;
+      				case '?':
+						return 1;
+      				default:
+						return 1;
+				}
+      		}
+
+            return processor_mode(host, port, use_lms);
         }
 
         // Invalid mode

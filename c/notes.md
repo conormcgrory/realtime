@@ -20,7 +20,7 @@
 - [x] Speed up LMS filter
 - [x] Write echo filter and add option for switching between filters
 - [x] Make notebook to analyze latency data
-- [ ] Get option parsing working so we can change host, port, and filter type
+- [x] Get option parsing working so we can change host, port, and filter type
 - [ ] Merge branch
 
 ## General
