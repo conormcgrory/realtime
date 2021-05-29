@@ -21,7 +21,7 @@
 - [x] Write echo filter and add option for switching between filters
 - [x] Make notebook to analyze latency data
 - [x] Get option parsing working so we can change host, port, and filter type
-- [ ] Merge branch
+- [x] Merge branch
 
 ## General
 
