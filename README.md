@@ -14,9 +14,10 @@ This directory contains code for a simple version of the real-time filtering sys
 - `julia`: Julia implementation of real-time filtering prototype
 - `python`: Python implementation of real-time filtering prototype
 - `rust`: Rust implementation of real-time filtering prototype
+- `c`: C implementation of real-time filtering prototype
 
 ## Setup
 
 ### Requirements
 
-This project requires installations of Python 3, Rust, and Julia.
+This project requires installations of Python 3, Rust, Julia, Conan, and CMake.
